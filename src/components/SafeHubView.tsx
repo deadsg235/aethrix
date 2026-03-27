@@ -77,7 +77,7 @@ export default function SafeHubView({ area, player, onRest, onHeal, onBack }: Pr
         </div>
 
         <div className="text-center text-gray-600 text-[10px] uppercase tracking-widest">
-          You are safe here. The empire's reach does not extend to this place.
+          You are safe here. The empire&apos;s reach does not extend to this place.
         </div>
       </div>
     </div>
