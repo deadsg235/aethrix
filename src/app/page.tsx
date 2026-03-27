@@ -229,13 +229,13 @@ export default function Home() {
         return { ...c, aethBalance: c.aethBalance - item.aethCost, inventory: [...c.inventory, item] };
       }
       if (currency === 'wallet_aeth') {
+        const cost = item.walletAethCost ?? item.aethCost;
         const walletBal = gs.walletAethBalance ?? 0;
-        if (walletBal < item.aethCost) { notify('Not enough wallet AETH'); return c; }
-        // Deduct from wallet balance in game state and track spend
+        if (walletBal < cost) { notify('Not enough wallet AETH'); return c; }
         setGs(prev => ({
           ...prev,
-          walletAethBalance: (prev.walletAethBalance ?? 0) - item.aethCost,
-          walletAethSpent: prev.walletAethSpent + item.aethCost,
+          walletAethBalance: (prev.walletAethBalance ?? 0) - cost,
+          walletAethSpent: prev.walletAethSpent + cost,
         }));
         return { ...c, inventory: [...c.inventory, item] };
       }

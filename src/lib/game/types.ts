@@ -35,8 +35,9 @@ export interface Item {
   statBonus?: Partial<Stats>;
   hpBonus?: number;
   mpBonus?: number;
-  aethCost: number;       // price in AETH tokens
-  goldCost?: number;      // price in in-game gold (free currency)
+  aethCost: number;           // in-game AETH (earned from combat/quests)
+  walletAethCost?: number;    // real AETH token cost from Phantom wallet
+  goldCost?: number;          // in-game gold
   blacksmithOnly?: boolean;
   effect?: string;
 }
