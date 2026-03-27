@@ -9,6 +9,7 @@ interface CombatViewProps {
   party: Character[];
   enemies: Character[];
   onCombatEnd: (victory: boolean) => void;
+  // victory flag passed to parent
 }
 
 const HealthBar: React.FC<{ current: number; max: number; label: string; color?: string }> = ({
@@ -73,10 +74,10 @@ export default function CombatView({ party, enemies: initialEnemies, onCombatEnd
 
     if (aliveEnemies.length === 0) {
       addLog("VICTORY! THE ABOMINATIONS ARE PURGED.");
-      setTimeout(() => onCombatEnd(true), 2000);
+      setTimeout(() => onCombatEnd(true), 1500);
     } else if (aliveParty.length === 0) {
       addLog("DEFEAT... YOUR MEMORIES FADE TO BLACK.");
-      setTimeout(() => onCombatEnd(false), 2000);
+      setTimeout(() => onCombatEnd(false), 1500);
     } else {
       setTurn(turn === "PLAYER" ? "ENEMY" : "PLAYER");
     }
