@@ -1,17 +1,19 @@
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 import { GameState, Character, Area, Continent, Quest, Item, StoryChoice, Stat } from '@/lib/game/types';
 import { RACES, SUBRACES, CLASSES } from '@/lib/game/data';
 import { createCharacter } from '@/lib/game/character';
 import { ALL_QUESTS } from '@/lib/game/quests';
-import { STORY_NODES } from '@/lib/game/story';
 import { ITEMS } from '@/lib/game/items';
 import { AETH_TOKEN, STARTING_AETH, STARTING_GOLD } from '@/lib/game/token';
-import { saveGame, loadGame, deleteSave, hasSave } from '@/lib/game/save';
+import {
+  autoSave, hasAnySave, loadAuto,
+  saveToSlot, loadSlot, deleteSlot, getAllSaveMeta,
+} from '@/lib/game/save';
 import { SKILL_TREE, SkillNode } from '@/lib/game/skilltree';
 
 import Logo from '@/components/Logo';
@@ -23,41 +25,45 @@ import MarketView from '@/components/MarketView';
 import SafeHubView from '@/components/SafeHubView';
 import CombatView from '@/components/CombatView';
 import SkillTreeView from '@/components/SkillTreeView';
+import SaveLoadScreen from '@/components/SaveLoadScreen';
+import WalletBar from '@/components/WalletBar';
 
-// ── Enemy factory ────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const IN_GAME_PHASES = new Set([
+  'WORLD', 'COMBAT', 'MARKET', 'BLACKSMITH',
+  'QUEST_BOARD', 'SAFE_HUB', 'SKILL_TREE', 'STORY', 'SAVE_LOAD',
+]);
+
 function spawnEnemies(areaId: string, playerLevel: number): Character[] {
-  const enemyTemplates: Record<string, { name: string; raceIdx: number; classIdx: number }[]> = {
-    default: [{ name: 'Void Abomination', raceIdx: 7, classIdx: 2 }],
-    valdris_capital: [{ name: 'Imperial Deserter', raceIdx: 1, classIdx: 0 }, { name: 'Street Thug', raceIdx: 0, classIdx: 3 }],
-    valdris_ashfields: [{ name: 'Ash Wraith', raceIdx: 6, classIdx: 2 }, { name: 'Fallen Soldier', raceIdx: 1, classIdx: 0 }],
-    valdris_ironmines: [{ name: 'Mine Horror', raceIdx: 3, classIdx: 2 }, { name: 'Stone Golem', raceIdx: 2, classIdx: 0 }],
-    valdris_border: [{ name: 'Fringe Raider', raceIdx: 6, classIdx: 3 }, { name: 'Void-Touched Warrior', raceIdx: 7, classIdx: 7 }],
-    valdris_riftgate: [{ name: 'Rift Abomination', raceIdx: 4, classIdx: 2 }, { name: 'Corrupted Warden', raceIdx: 5, classIdx: 5 }],
-    nocthar_duskport: [{ name: 'Dusk Thief', raceIdx: 6, classIdx: 3 }],
-    nocthar_voidmarsh: [{ name: 'Void Revenant', raceIdx: 7, classIdx: 2 }, { name: 'Marsh Horror', raceIdx: 3, classIdx: 2 }],
-    nocthar_obsidian_spire: [{ name: 'Spire Guardian', raceIdx: 2, classIdx: 0 }, { name: 'Obsidian Golem', raceIdx: 3, classIdx: 7 }],
-    nocthar_fringe_camp: [{ name: 'Fringe Champion', raceIdx: 0, classIdx: 7 }, { name: 'Beast Rider', raceIdx: 0, classIdx: 0 }],
-    nocthar_heart: [{ name: 'Storm Titan', raceIdx: 4, classIdx: 6 }, { name: 'Void Leviathan', raceIdx: 7, classIdx: 2 }],
-    solmara_tidehaven: [{ name: 'Archive Guardian', raceIdx: 5, classIdx: 4 }],
-    solmara_drowned_city: [{ name: 'Drowned Guardian', raceIdx: 1, classIdx: 0 }, { name: 'Ancient Construct', raceIdx: 5, classIdx: 5 }],
-    solmara_crystal_wastes: [{ name: 'Crystal Elemental', raceIdx: 4, classIdx: 1 }, { name: 'Aether Wraith', raceIdx: 4, classIdx: 2 }],
-    solmara_vault: [{ name: 'Vault Sentinel', raceIdx: 5, classIdx: 4 }, { name: 'Knowledge Horror', raceIdx: 7, classIdx: 1 }],
-    solmara_origin: [{ name: 'Origin Guardian', raceIdx: 4, classIdx: 1 }, { name: 'Aethrix Construct', raceIdx: 4, classIdx: 5 }],
+  const templates: Record<string, { name: string; raceIdx: number; classIdx: number }[]> = {
+    default:                [{ name: 'Void Abomination',     raceIdx: 7, classIdx: 2 }],
+    valdris_capital:        [{ name: 'Imperial Deserter',    raceIdx: 1, classIdx: 0 }],
+    valdris_ashfields:      [{ name: 'Ash Wraith',           raceIdx: 6, classIdx: 2 }],
+    valdris_ironmines:      [{ name: 'Mine Horror',          raceIdx: 3, classIdx: 2 }],
+    valdris_border:         [{ name: 'Fringe Raider',        raceIdx: 6, classIdx: 3 }],
+    valdris_riftgate:       [{ name: 'Rift Abomination',     raceIdx: 4, classIdx: 2 }],
+    nocthar_duskport:       [{ name: 'Dusk Thief',           raceIdx: 6, classIdx: 3 }],
+    nocthar_voidmarsh:      [{ name: 'Void Revenant',        raceIdx: 7, classIdx: 2 }],
+    nocthar_obsidian_spire: [{ name: 'Spire Guardian',       raceIdx: 2, classIdx: 0 }],
+    nocthar_fringe_camp:    [{ name: 'Fringe Champion',      raceIdx: 0, classIdx: 7 }],
+    nocthar_heart:          [{ name: 'Storm Titan',          raceIdx: 4, classIdx: 6 }],
+    solmara_tidehaven:      [{ name: 'Archive Guardian',     raceIdx: 5, classIdx: 4 }],
+    solmara_drowned_city:   [{ name: 'Drowned Guardian',     raceIdx: 1, classIdx: 0 }],
+    solmara_crystal_wastes: [{ name: 'Crystal Elemental',    raceIdx: 4, classIdx: 1 }],
+    solmara_vault:          [{ name: 'Vault Sentinel',       raceIdx: 5, classIdx: 4 }],
+    solmara_origin:         [{ name: 'Origin Guardian',      raceIdx: 4, classIdx: 1 }],
   };
-
-  const templates = enemyTemplates[areaId] || enemyTemplates.default;
-  return templates.slice(0, 1).map(t => {
-    const enemy = createCharacter(t.name, RACES[t.raceIdx], SUBRACES[Math.floor(Math.random() * 8)], CLASSES[t.classIdx]);
-    // Scale to player level
+  const tpls = templates[areaId] ?? templates.default;
+  return tpls.slice(0, 1).map(t => {
+    const e = createCharacter(t.name, RACES[t.raceIdx], SUBRACES[Math.floor(Math.random() * 8)], CLASSES[t.classIdx]);
     const scale = Math.max(1, playerLevel - 1);
-    Object.keys(enemy.currentStats).forEach(s => { (enemy.currentStats as Record<string, number>)[s] += scale * 2; });
-    enemy.hp.max = enemy.currentStats.CON * 10 + enemy.currentStats.STR * 2 + scale * 20;
-    enemy.hp.current = enemy.hp.max;
-    return enemy;
+    (Object.keys(e.currentStats) as Stat[]).forEach(s => { e.currentStats[s] += scale * 2; });
+    e.hp.max = e.currentStats.CON * 10 + e.currentStats.STR * 2 + scale * 20;
+    e.hp.current = e.hp.max;
+    return e;
   });
 }
 
-// ── Initial state ────────────────────────────────────────────────────────────
 function makeInitialState(): GameState {
   return {
     phase: 'LANDING',
@@ -70,6 +76,9 @@ function makeInitialState(): GameState {
     enemies: [],
     combatReturnPhase: 'WORLD',
     unlockedSkills: [],
+    walletPublicKey: null,
+    walletAethBalance: null,
+    walletAethSpent: 0,
     log: [],
   };
 }
@@ -80,151 +89,272 @@ export default function Home() {
   const [activeArea, setActiveArea] = useState<Area | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [saveExists, setSaveExists] = useState(false);
-  const [walletAethUsed, setWalletAethUsed] = useState(0);
+  const prevPhaseRef = useRef<GameState['phase']>('LANDING');
 
-  React.useEffect(() => { setSaveExists(hasSave()); }, []);
+  // Check for existing saves on mount
+  useEffect(() => { setSaveExists(hasAnySave()); }, []);
 
-  const notify = (msg: string) => {
+  // Auto-save on every phase transition (except LANDING / CHARACTER_CREATION)
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    prevPhaseRef.current = gs.phase;
+    if (
+      gs.phase !== prev &&
+      gs.party.length > 0 &&
+      gs.phase !== 'LANDING' &&
+      gs.phase !== 'CHARACTER_CREATION'
+    ) {
+      autoSave(gs);
+      setSaveExists(true);
+    }
+  }, [gs.phase]);
+
+  const notify = useCallback((msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3000);
-  };
+  }, []);
 
   const updatePlayer = useCallback((updater: (c: Character) => Character) => {
-    setGs(prev => ({ ...prev, party: prev.party.map((c, i) => i === 0 ? updater(c) : c) }));
+    setGs(prev => ({
+      ...prev,
+      party: prev.party.map((c, i) => i === 0 ? updater(c) : c),
+    }));
   }, []);
 
   const player = gs.party[0];
 
-  // ── Story choice handler ──────────────────────────────────────────────────
-  const handleStoryChoice = (choice: StoryChoice, nextNodeId: string) => {
+  // ── Wallet sync ───────────────────────────────────────────────────────────
+  const handleWalletConnect = useCallback((publicKey: string, balance: number) => {
+    setGs(prev => ({ ...prev, walletPublicKey: publicKey, walletAethBalance: balance }));
+  }, []);
+
+  const handleWalletDisconnect = useCallback(() => {
+    setGs(prev => ({ ...prev, walletPublicKey: null, walletAethBalance: null }));
+  }, []);
+
+  const handleWalletBalanceUpdate = useCallback((balance: number) => {
+    setGs(prev => ({ ...prev, walletAethBalance: balance }));
+  }, []);
+
+  // ── Phase helper ──────────────────────────────────────────────────────────
+  const goTo = useCallback((phase: GameState['phase']) => {
+    setGs(prev => ({ ...prev, phase }));
+  }, []);
+
+  // ── Story ─────────────────────────────────────────────────────────────────
+  const handleStoryChoice = useCallback((choice: StoryChoice, nextNodeId: string) => {
     setGs(prev => {
-      const newFlags = choice.effect.setFlag ? [...prev.storyFlags, choice.effect.setFlag] : prev.storyFlags;
+      const newFlags = choice.effect.setFlag
+        ? [...prev.storyFlags, choice.effect.setFlag]
+        : prev.storyFlags;
+
       const newParty = prev.party.map((c, i) => {
         if (i !== 0) return c;
-        let updated = { ...c };
+        let u = { ...c, currentStats: { ...c.currentStats } };
         if (choice.effect.statBonus) {
-          updated.currentStats = { ...updated.currentStats };
           Object.entries(choice.effect.statBonus).forEach(([s, v]) => {
-            (updated.currentStats as Record<string, number>)[s] = ((updated.currentStats as Record<string, number>)[s] || 0) + (v || 0);
+            u.currentStats[s as Stat] = (u.currentStats[s as Stat] ?? 0) + (v ?? 0);
           });
         }
-        if (choice.effect.aethReward) updated.aethBalance += choice.effect.aethReward;
-        if (choice.effect.goldReward) updated.gold += choice.effect.goldReward;
+        if (choice.effect.aethReward) u.aethBalance += choice.effect.aethReward;
+        if (choice.effect.goldReward) u.gold += choice.effect.goldReward;
         if (choice.effect.addItem && ITEMS[choice.effect.addItem]) {
-          updated.inventory = [...updated.inventory, ITEMS[choice.effect.addItem]];
+          u.inventory = [...u.inventory, ITEMS[choice.effect.addItem]];
         }
-        return updated;
+        return u;
       });
 
       let newQuests = prev.quests;
       if (choice.effect.addQuest) {
         const q = ALL_QUESTS.find(q => q.id === choice.effect.addQuest);
-        if (q && !prev.quests.find(pq => pq.id === q.id)) newQuests = [...prev.quests, { ...q, status: 'active' }];
+        if (q && !prev.quests.find(pq => pq.id === q.id)) {
+          newQuests = [...prev.quests, { ...q, status: 'active' }];
+        }
       }
 
       return { ...prev, storyNodeId: nextNodeId, storyFlags: newFlags, party: newParty, quests: newQuests };
     });
-  };
+  }, []);
 
-  // ── Quest accept ─────────────────────────────────────────────────────────
-  const handleAcceptQuest = (quest: Quest) => {
+  // ── Quests ────────────────────────────────────────────────────────────────
+  const handleAcceptQuest = useCallback((quest: Quest) => {
     setGs(prev => {
       if (prev.quests.find(q => q.id === quest.id)) return prev;
       return { ...prev, quests: [...prev.quests, { ...quest, status: 'active' }] };
     });
     notify(`Quest accepted: ${quest.title}`);
-  };
+  }, [notify]);
 
-  // ── Buy item ─────────────────────────────────────────────────────────────
-  const handleBuy = (item: Item, currency: 'aeth' | 'gold') => {
+  // ── Buy item — supports wallet AETH as source ─────────────────────────────
+  const handleBuy = useCallback((item: Item, currency: 'aeth' | 'gold' | 'wallet_aeth') => {
     updatePlayer(c => {
       if (currency === 'aeth') {
-        if (c.aethBalance < item.aethCost) { notify('Not enough AETH'); return c; }
+        if (c.aethBalance < item.aethCost) { notify('Not enough in-game AETH'); return c; }
         return { ...c, aethBalance: c.aethBalance - item.aethCost, inventory: [...c.inventory, item] };
-      } else {
-        if (!item.goldCost || c.gold < item.goldCost) { notify('Not enough Gold'); return c; }
-        return { ...c, gold: c.gold - item.goldCost, inventory: [...c.inventory, item] };
       }
+      if (currency === 'wallet_aeth') {
+        const walletBal = gs.walletAethBalance ?? 0;
+        if (walletBal < item.aethCost) { notify('Not enough wallet AETH'); return c; }
+        // Deduct from wallet balance in game state and track spend
+        setGs(prev => ({
+          ...prev,
+          walletAethBalance: (prev.walletAethBalance ?? 0) - item.aethCost,
+          walletAethSpent: prev.walletAethSpent + item.aethCost,
+        }));
+        return { ...c, inventory: [...c.inventory, item] };
+      }
+      // gold
+      if (!item.goldCost || c.gold < item.goldCost) { notify('Not enough Gold'); return c; }
+      return { ...c, gold: c.gold - item.goldCost, inventory: [...c.inventory, item] };
     });
     notify(`Purchased: ${item.name}`);
-  };
+  }, [gs.walletAethBalance, notify, updatePlayer]);
 
-  // ── Safe hub ─────────────────────────────────────────────────────────────
-  const handleRest = () => {
+  // ── Safe hub ──────────────────────────────────────────────────────────────
+  const handleRest = useCallback(() => {
     updatePlayer(c => ({ ...c, hp: { ...c.hp, current: c.hp.max }, mp: { ...c.mp, current: c.mp.max } }));
     notify('Fully rested. HP and MP restored.');
-  };
+  }, [updatePlayer, notify]);
 
-  const handleHeal = () => {
+  const handleHeal = useCallback(() => {
     updatePlayer(c => {
       const cost = Math.floor((c.hp.max - c.hp.current) * 0.5);
       if (c.gold < cost) { notify('Not enough gold'); return c; }
       return { ...c, gold: c.gold - cost, hp: { ...c.hp, current: c.hp.max } };
     });
     notify('Healed to full HP.');
-  };
+  }, [updatePlayer, notify]);
 
-  // ── Combat end ───────────────────────────────────────────────────────────
-  const handleCombatEnd = (victory: boolean) => {
+  // ── Combat ────────────────────────────────────────────────────────────────
+  const handleCombatEnd = useCallback((victory: boolean) => {
     if (victory) {
-      const expGain = 200 + (player?.level || 1) * 50;
-      const goldGain = 50 + Math.floor(Math.random() * 100);
+      const expGain  = 200 + (player?.level ?? 1) * 50;
+      const goldGain = 50  + Math.floor(Math.random() * 100);
       const aethGain = Math.floor(Math.random() * 10) + 5;
-      updatePlayer(c => ({ ...c, exp: c.exp + expGain, gold: c.gold + goldGain, aethBalance: c.aethBalance + aethGain }));
-      notify(`Victory! +${expGain} EXP, +${goldGain} Gold, +${aethGain} AETH`);
+      updatePlayer(c => ({
+        ...c,
+        exp: c.exp + expGain,
+        gold: c.gold + goldGain,
+        aethBalance: c.aethBalance + aethGain,
+      }));
+      notify(`Victory! +${expGain} EXP  +${goldGain} Gold  +${aethGain} AETH`);
     } else {
-      notify('Defeated... returning to safe ground.');
+      notify('Defeated… returning to safe ground.');
     }
-    setGs(prev => ({ ...prev, phase: gs.combatReturnPhase, enemies: [] }));
-  };
+    setGs(prev => ({ ...prev, phase: prev.combatReturnPhase, enemies: [] }));
+  }, [player, updatePlayer, notify]);
 
-  // ── Character creation complete ──────────────────────────────────────────
-  const handleCharacterCreated = (character: Character) => {
+  // ── Character creation ────────────────────────────────────────────────────
+  const handleCharacterCreated = useCallback((character: Character) => {
     const companion = createCharacter('Valen', RACES[1], SUBRACES[7], CLASSES[5]);
     companion.gold = 0;
     companion.aethBalance = 0;
-    setGs(prev => ({ ...prev, phase: 'STORY', party: [character, companion], storyNodeId: 'intro' }));
-  };
+    setGs(prev => ({
+      ...prev,
+      phase: 'STORY',
+      party: [character, companion],
+      storyNodeId: 'intro',
+    }));
+  }, []);
 
-  // ── Enter area for combat ────────────────────────────────────────────────
-  const handleEnterArea = (area: Area, continent: Continent) => {
-    const enemies = spawnEnemies(area.id, player?.level || 1);
+  // ── Enter area ────────────────────────────────────────────────────────────
+  const handleEnterArea = useCallback((area: Area, continent: Continent) => {
+    const enemies = spawnEnemies(area.id, player?.level ?? 1);
     setActiveArea(area);
-    setGs(prev => ({ ...prev, phase: 'COMBAT', enemies, activeAreaId: area.id, activeContinentId: continent.id, combatReturnPhase: 'WORLD' }));
-  };
+    setGs(prev => ({
+      ...prev,
+      phase: 'COMBAT',
+      enemies,
+      activeAreaId: area.id,
+      activeContinentId: continent.id,
+      combatReturnPhase: 'WORLD',
+    }));
+  }, [player]);
 
-  // ── Save / Load ──────────────────────────────────────────────────────────
-  // ── Skill unlock ─────────────────────────────────────────────────────────
-  const handleSkillUnlock = (node: SkillNode, source: 'wallet' | 'ingame') => {
+  // ── Skill unlock ──────────────────────────────────────────────────────────
+  const handleSkillUnlock = useCallback((node: SkillNode, source: 'wallet' | 'ingame') => {
     setGs(prev => {
       if (prev.unlockedSkills.includes(node.id)) return prev;
+
       const newParty = prev.party.map((c, i) => {
         if (i !== 0) return c;
-        let updated = { ...c, currentStats: { ...c.currentStats } };
+        let u = { ...c, currentStats: { ...c.currentStats } };
         if (node.statBonus) {
           Object.entries(node.statBonus).forEach(([s, v]) => {
-            updated.currentStats[s as Stat] = (updated.currentStats[s as Stat] || 0) + (v || 0);
+            u.currentStats[s as Stat] = (u.currentStats[s as Stat] ?? 0) + (v ?? 0);
           });
         }
-        if (node.hpBonus) { updated.hp = { ...updated.hp, max: updated.hp.max + node.hpBonus, current: updated.hp.current + node.hpBonus }; }
-        if (node.mpBonus) { updated.mp = { ...updated.mp, max: updated.mp.max + node.mpBonus, current: updated.mp.current + node.mpBonus }; }
-        if (source === 'ingame') updated.aethBalance = updated.aethBalance - node.aethCost;
-        if (source === 'wallet') setWalletAethUsed(prev => prev + node.aethCost);
-        return updated;
+        if (node.hpBonus) u.hp = { max: u.hp.max + node.hpBonus, current: u.hp.current + node.hpBonus };
+        if (node.mpBonus) u.mp = { max: u.mp.max + node.mpBonus, current: u.mp.current + node.mpBonus };
+        if (source === 'ingame') u.aethBalance = u.aethBalance - node.aethCost;
+        return u;
       });
-      return { ...prev, unlockedSkills: [...prev.unlockedSkills, node.id], party: newParty };
+
+      const walletUpdate = source === 'wallet'
+        ? {
+            walletAethBalance: (prev.walletAethBalance ?? 0) - node.aethCost,
+            walletAethSpent: prev.walletAethSpent + node.aethCost,
+          }
+        : {};
+
+      return {
+        ...prev,
+        ...walletUpdate,
+        unlockedSkills: [...prev.unlockedSkills, node.id],
+        party: newParty,
+      };
     });
     notify(`Skill unlocked: ${node.name}`);
-  };
+  }, [notify]);
 
-  const handleSave = () => { saveGame(gs); setSaveExists(true); notify('Game saved.'); };
-  const handleLoad = () => {
-    const saved = loadGame();
-    if (saved) { setGs(saved); notify('Game loaded.'); }
-  };
-  const handleNewGame = () => { deleteSave(); setSaveExists(false); setGs({ ...makeInitialState(), phase: 'CHARACTER_CREATION' }); };
+  // ── Save / Load ───────────────────────────────────────────────────────────
+  const handleLoadState = useCallback((state: GameState) => {
+    setGs({
+      ...makeInitialState(),   // ensures new fields exist
+      ...state,
+      phase: 'WORLD',
+      walletPublicKey: null,   // never persist wallet key across sessions
+      walletAethBalance: null,
+    });
+    setSaveExists(true);
+    notify('Game loaded.');
+  }, [notify]);
 
-  // ── RENDER ───────────────────────────────────────────────────────────────
+  const handleNewGame = useCallback(() => {
+    setGs({ ...makeInitialState(), phase: 'CHARACTER_CREATION' });
+  }, []);
+
+  const handleContinue = useCallback(() => {
+    const saved = loadAuto();
+    if (saved) { setGs({ ...saved.state, phase: 'WORLD' }); notify('Game loaded.'); }
+  }, [notify]);
+
+  // ── Shared WalletBar wrapper ──────────────────────────────────────────────
+  const GameShell = ({ children }: { children: React.ReactNode }) => (
+    <div className="pt-10">
+      <WalletBar
+        player={player}
+        onWalletConnect={handleWalletConnect}
+        onWalletDisconnect={handleWalletDisconnect}
+        onWalletBalanceUpdate={handleWalletBalanceUpdate}
+        onOpenSaveLoad={() => goTo('SAVE_LOAD')}
+        onOpenSkillTree={() => goTo('SKILL_TREE')}
+      />
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="fixed top-12 right-4 z-50 bg-black border border-aethrix-gold px-4 py-2 text-xs text-aethrix-gold uppercase tracking-widest shadow-lg"
+          >
+            {notification}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {children}
+    </div>
+  );
+
+  // ── RENDER ────────────────────────────────────────────────────────────────
 
   if (gs.phase === 'CHARACTER_CREATION') {
     return <CharacterCreation onComplete={handleCharacterCreated} />;
@@ -232,125 +362,137 @@ export default function Home() {
 
   if (gs.phase === 'STORY') {
     return (
-      <StoryView
-        nodeId={gs.storyNodeId}
-        flags={gs.storyFlags}
-        onChoice={handleStoryChoice}
-        onOpenWorld={() => setGs(prev => ({ ...prev, phase: 'WORLD' }))}
-      />
+      <GameShell>
+        <StoryView
+          nodeId={gs.storyNodeId}
+          flags={gs.storyFlags}
+          onChoice={handleStoryChoice}
+          onOpenWorld={() => goTo('WORLD')}
+        />
+      </GameShell>
     );
   }
 
   if (gs.phase === 'WORLD') {
     return (
-      <div className="relative">
-        {notification && (
-          <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="fixed top-4 right-4 z-50 bg-black border border-aethrix-gold px-4 py-2 text-xs text-aethrix-gold uppercase tracking-widest">
-            {notification}
-          </motion.div>
-        )}
-        <div className="fixed bottom-4 right-4 z-50 flex gap-2">
-          <button onClick={() => setGs(prev => ({ ...prev, phase: 'SKILL_TREE' }))}
-            className="border border-purple-700 px-3 py-1 text-[9px] uppercase hover:border-purple-400 hover:text-purple-400 transition-all bg-black">
-            Skill Tree
-          </button>
-          <button onClick={handleSave} className="border border-gray-700 px-3 py-1 text-[9px] uppercase hover:border-aethrix-gold hover:text-aethrix-gold transition-all bg-black">
-            Save
-          </button>
-        </div>
+      <GameShell>
         <WorldView
           party={gs.party}
           onEnterArea={handleEnterArea}
-          onOpenQuestBoard={(areaId) => {
-            setGs(prev => ({ ...prev, phase: 'QUEST_BOARD', activeAreaId: areaId }));
-          }}
-          onOpenMarket={(area) => { setActiveArea(area); setGs(prev => ({ ...prev, phase: 'MARKET' })); }}
-          onOpenBlacksmith={(area) => { setActiveArea(area); setGs(prev => ({ ...prev, phase: 'BLACKSMITH' })); }}
-          onOpenSafeHub={(area) => { setActiveArea(area); setGs(prev => ({ ...prev, phase: 'SAFE_HUB' })); }}
-          onOpenStory={() => setGs(prev => ({ ...prev, phase: 'STORY' }))}
-          onOpenSkillTree={() => setGs(prev => ({ ...prev, phase: 'SKILL_TREE' }))}
+          onOpenQuestBoard={areaId => setGs(prev => ({ ...prev, phase: 'QUEST_BOARD', activeAreaId: areaId }))}
+          onOpenMarket={area => { setActiveArea(area); goTo('MARKET'); }}
+          onOpenBlacksmith={area => { setActiveArea(area); goTo('BLACKSMITH'); }}
+          onOpenSafeHub={area => { setActiveArea(area); goTo('SAFE_HUB'); }}
+          onOpenStory={() => goTo('STORY')}
+          onOpenSkillTree={() => goTo('SKILL_TREE')}
         />
-      </div>
+      </GameShell>
     );
   }
 
   if (gs.phase === 'QUEST_BOARD' && gs.activeAreaId) {
     return (
-      <QuestBoard
-        areaId={gs.activeAreaId}
-        activeQuests={gs.quests}
-        playerLevel={player?.level || 1}
-        onAcceptQuest={handleAcceptQuest}
-        onBack={() => setGs(prev => ({ ...prev, phase: 'WORLD' }))}
-      />
+      <GameShell>
+        <QuestBoard
+          areaId={gs.activeAreaId}
+          activeQuests={gs.quests}
+          playerLevel={player?.level ?? 1}
+          onAcceptQuest={handleAcceptQuest}
+          onBack={() => goTo('WORLD')}
+        />
+      </GameShell>
     );
   }
 
   if (gs.phase === 'MARKET' && activeArea) {
     return (
-      <MarketView
-        area={activeArea}
-        player={player}
-        isBlacksmith={false}
-        onBuy={handleBuy}
-        onBack={() => setGs(prev => ({ ...prev, phase: 'WORLD' }))}
-      />
+      <GameShell>
+        <MarketView
+          area={activeArea}
+          player={player}
+          walletAethBalance={gs.walletAethBalance}
+          isBlacksmith={false}
+          onBuy={handleBuy}
+          onBack={() => goTo('WORLD')}
+        />
+      </GameShell>
     );
   }
 
   if (gs.phase === 'BLACKSMITH' && activeArea) {
     return (
-      <MarketView
-        area={activeArea}
-        player={player}
-        isBlacksmith={true}
-        onBuy={handleBuy}
-        onBack={() => setGs(prev => ({ ...prev, phase: 'WORLD' }))}
-      />
+      <GameShell>
+        <MarketView
+          area={activeArea}
+          player={player}
+          walletAethBalance={gs.walletAethBalance}
+          isBlacksmith={true}
+          onBuy={handleBuy}
+          onBack={() => goTo('WORLD')}
+        />
+      </GameShell>
     );
   }
 
   if (gs.phase === 'SAFE_HUB' && activeArea) {
     return (
-      <SafeHubView
-        area={activeArea}
-        player={player}
-        onRest={handleRest}
-        onHeal={handleHeal}
-        onBack={() => setGs(prev => ({ ...prev, phase: 'WORLD' }))}
-      />
+      <GameShell>
+        <SafeHubView
+          area={activeArea}
+          player={player}
+          onRest={handleRest}
+          onHeal={handleHeal}
+          onBack={() => goTo('WORLD')}
+        />
+      </GameShell>
     );
   }
 
   if (gs.phase === 'SKILL_TREE') {
     return (
-      <SkillTreeView
-        player={player}
-        unlockedSkills={gs.unlockedSkills}
-        onUnlock={handleSkillUnlock}
-        onBack={() => setGs(prev => ({ ...prev, phase: 'WORLD' }))}
-      />
+      <GameShell>
+        <SkillTreeView
+          player={player}
+          walletAethBalance={gs.walletAethBalance}
+          unlockedSkills={gs.unlockedSkills}
+          onUnlock={handleSkillUnlock}
+          onBack={() => goTo('WORLD')}
+        />
+      </GameShell>
+    );
+  }
+
+  if (gs.phase === 'SAVE_LOAD') {
+    return (
+      <GameShell>
+        <SaveLoadScreen
+          currentState={gs}
+          onLoad={handleLoadState}
+          onBack={() => goTo(gs.party.length > 0 ? 'WORLD' : 'LANDING')}
+        />
+      </GameShell>
     );
   }
 
   if (gs.phase === 'COMBAT') {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8 font-mono bg-black text-aethrix-gold overflow-hidden">
-        <CombatView
-          party={gs.party}
-          enemies={gs.enemies}
-          onCombatEnd={handleCombatEnd}
-        />
-      </main>
+      <GameShell>
+        <main className="flex min-h-screen flex-col items-center justify-center p-8 font-mono bg-black text-aethrix-gold overflow-hidden">
+          <CombatView
+            party={gs.party}
+            enemies={gs.enemies}
+            onCombatEnd={handleCombatEnd}
+          />
+        </main>
+      </GameShell>
     );
   }
 
-  // ── LANDING PAGE ─────────────────────────────────────────────────────────
+  // ── LANDING ───────────────────────────────────────────────────────────────
   return (
     <div className="relative min-h-screen bg-black text-white font-mono selection:bg-aethrix-gold selection:text-black">
       <div className="fixed inset-0 z-0">
-        <Image src="/images/aethrix-banner.png" alt="Aethrix Background" fill className="object-cover opacity-40 brightness-50" priority />
+        <Image src="/images/aethrix-banner.png" alt="Aethrix" fill className="object-cover opacity-40 brightness-50" priority />
         <div className="absolute inset-0 vignette" />
         <div className="absolute inset-0 gritty-overlay" />
         <div className="scanline" />
@@ -361,18 +503,21 @@ export default function Home() {
           <div className="w-10 h-10 border border-aethrix-gold flex items-center justify-center font-bold text-aethrix-gold bg-black">A</div>
           <span className="text-xl font-bold tracking-[0.3em] uppercase terminal-text">Aethrix</span>
         </div>
-        <div className="hidden md:flex gap-8 text-[10px] tracking-widest uppercase text-gray-400">
+        <div className="hidden md:flex items-center gap-6 text-[10px] tracking-widest uppercase text-gray-400">
           <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer" className="hover:text-aethrix-gold transition-colors">Buy AETH</a>
           <a href={AETH_TOKEN.dexUrl} target="_blank" rel="noopener noreferrer" className="hover:text-aethrix-gold transition-colors">Chart</a>
-          <span className="text-gray-700 text-[8px] self-center">{AETH_TOKEN.contract.slice(0, 8)}...{AETH_TOKEN.contract.slice(-6)}</span>
+          <a href={AETH_TOKEN.jupiterUrl} target="_blank" rel="noopener noreferrer" className="hover:text-aethrix-cyan transition-colors">Jupiter</a>
+          <span className="text-gray-800 text-[8px] font-mono">{AETH_TOKEN.contract}</span>
         </div>
         <div className="flex gap-3">
           {saveExists && (
-            <button onClick={handleLoad} className="px-4 py-2 border border-gray-600 text-[10px] tracking-widest hover:border-aethrix-cyan hover:text-aethrix-cyan transition-all">
+            <button onClick={handleContinue}
+              className="px-4 py-2 border border-gray-600 text-[10px] tracking-widest hover:border-aethrix-cyan hover:text-aethrix-cyan transition-all">
               CONTINUE
             </button>
           )}
-          <button onClick={handleNewGame} className="px-6 py-2 border border-aethrix-gold text-[10px] tracking-widest hover:bg-aethrix-gold hover:text-black transition-all">
+          <button onClick={handleNewGame}
+            className="px-6 py-2 border border-aethrix-gold text-[10px] tracking-widest hover:bg-aethrix-gold hover:text-black transition-all">
             NEW GAME
           </button>
         </div>
@@ -383,15 +528,21 @@ export default function Home() {
           <Logo className="mb-12 scale-125" />
           <h1 className="text-6xl md:text-8xl font-black uppercase tracking-tighter mb-4 terminal-text">Tiena-Nueble</h1>
           <p className="text-aethrix-gold text-lg md:text-xl tracking-[0.4em] uppercase font-light mb-4 glow-cyan">The One World Government</p>
-          <p className="text-gray-500 text-xs tracking-widest mb-12">
-            Token: <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer" className="text-aethrix-gold hover:underline">{AETH_TOKEN.contract}</a>
-          </p>
+
+          {/* Token CA display */}
+          <div className="flex items-center justify-center gap-3 mb-12">
+            <span className="text-gray-600 text-[10px] uppercase tracking-widest">AETH Token</span>
+            <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer"
+              className="text-aethrix-gold text-[10px] font-mono hover:underline">
+              {AETH_TOKEN.contract}
+            </a>
+          </div>
 
           <div className="grid md:grid-cols-3 gap-6 text-left mb-16">
             {[
-              { label: '3 Continents', sub: '15 Areas to explore', color: 'border-aethrix-gold' },
-              { label: '9 Main Quests', sub: 'Full branching storyline', color: 'border-aethrix-cyan' },
-              { label: 'AETH Economy', sub: 'Real token, in-game power', color: 'border-purple-500' },
+              { label: '3 Continents', sub: '15 areas · markets · blacksmiths', color: 'border-aethrix-gold' },
+              { label: '9 Main Quests', sub: 'Full branching storyline · 3 endings', color: 'border-aethrix-cyan' },
+              { label: 'AETH Economy', sub: 'Real Phantom wallet · skill tree · items', color: 'border-purple-500' },
             ].map(f => (
               <div key={f.label} className={`border-l-2 ${f.color} pl-4 py-2 bg-black/40`}>
                 <div className="font-bold uppercase tracking-widest text-sm">{f.label}</div>
@@ -400,13 +551,13 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center flex-wrap">
             <button onClick={handleNewGame}
               className="px-12 py-4 bg-aethrix-gold text-black font-black uppercase tracking-widest hover:bg-white transition-all transform hover:-translate-y-1">
               Begin the Chronicle
             </button>
             {saveExists && (
-              <button onClick={handleLoad}
+              <button onClick={handleContinue}
                 className="px-12 py-4 border border-aethrix-gold text-aethrix-gold font-black uppercase tracking-widest hover:bg-aethrix-gold hover:text-black transition-all">
                 Continue
               </button>
@@ -415,13 +566,20 @@ export default function Home() {
         </motion.div>
       </section>
 
-      <footer className="relative z-10 py-12 px-8 border-t border-white/5 bg-black text-center">
-        <p className="text-gray-600 text-[10px] uppercase tracking-widest">
-          © 2026 Tiena-Nueble High Command · AETH Token: {AETH_TOKEN.contract}
-        </p>
-        <div className="flex justify-center gap-6 mt-4">
-          <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-aethrix-gold hover:underline uppercase">Buy on pump.fun</a>
-          <a href={AETH_TOKEN.dexUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:text-white uppercase">DexScreener</a>
+      <footer className="relative z-10 py-12 px-8 border-t border-white/5 bg-black">
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <p className="text-gray-600 text-[10px] uppercase tracking-widest">
+            © 2026 Tiena-Nueble High Command
+          </p>
+          <div className="flex items-center gap-2 border border-gray-800 px-4 py-2">
+            <span className="text-[9px] text-gray-600 uppercase">AETH</span>
+            <span className="text-[9px] text-aethrix-gold/60 font-mono">{AETH_TOKEN.contract}</span>
+          </div>
+          <div className="flex gap-6">
+            <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-aethrix-gold hover:underline uppercase">pump.fun</a>
+            <a href={AETH_TOKEN.dexUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:text-white uppercase">DexScreener</a>
+            <a href={AETH_TOKEN.jupiterUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-gray-500 hover:text-aethrix-cyan uppercase">Jupiter</a>
+          </div>
         </div>
       </footer>
     </div>

@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Character } from '@/lib/game/types';
 import { SKILL_TREE, SkillNode } from '@/lib/game/skilltree';
-import { usePhantom } from '@/hooks/usePhantom';
 import { AETH_TOKEN } from '@/lib/game/token';
 
 interface Props {
   player: Character;
+  walletAethBalance: number | null;
   unlockedSkills: string[];
   onUnlock: (node: SkillNode, source: 'wallet' | 'ingame') => void;
   onBack: () => void;
@@ -22,8 +22,7 @@ const BRANCH_META = {
 
 type Branch = keyof typeof BRANCH_META;
 
-export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack }: Props) {
-  const wallet = usePhantom();
+export default function SkillTreeView({ player, walletAethBalance, unlockedSkills, onUnlock, onBack }: Props) {
   const [selectedNode, setSelectedNode] = useState<SkillNode | null>(null);
   const [activeBranch, setActiveBranch] = useState<Branch>('aether');
   const [confirmNode, setConfirmNode] = useState<{ node: SkillNode; source: 'wallet' | 'ingame' } | null>(null);
@@ -37,13 +36,11 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
     return { ok: true };
   };
 
-  const canAffordWallet = (node: SkillNode) =>
-    wallet.connected && wallet.aethBalance !== null && wallet.aethBalance >= node.aethCost;
+  const canAffordWallet  = (node: SkillNode) => walletAethBalance !== null && walletAethBalance >= node.aethCost;
+  const canAffordIngame  = (node: SkillNode) => player.aethBalance >= node.aethCost;
 
-  const canAffordIngame = (node: SkillNode) => player.aethBalance >= node.aethCost;
-
-  const branchNodes = SKILL_TREE.filter(n => n.branch === activeBranch).sort((a, b) => a.tier - b.tier);
-  const totalSpent = SKILL_TREE.filter(n => isUnlocked(n.id)).reduce((s, n) => s + n.aethCost, 0);
+  const branchNodes  = SKILL_TREE.filter(n => n.branch === activeBranch).sort((a, b) => a.tier - b.tier);
+  const totalSpent   = SKILL_TREE.filter(n => isUnlocked(n.id)).reduce((s, n) => s + n.aethCost, 0);
 
   const copyCA = () => {
     navigator.clipboard.writeText(AETH_TOKEN.contract);
@@ -61,36 +58,38 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
   return (
     <div className="min-h-screen bg-black text-white font-mono">
 
-      {/* ── Token Banner ─────────────────────────────────────────── */}
+      {/* Token banner */}
       <div className="bg-black border-b border-aethrix-gold/30 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-6">
-          <div>
-            <span className="text-aethrix-gold font-black text-lg tracking-widest">AETH</span>
-            <span className="text-gray-600 text-xs ml-2">Aethrix Token · Solana</span>
-          </div>
+        <div className="flex items-center gap-4">
+          <span className="text-aethrix-gold font-black text-lg tracking-widest">AETH</span>
+          <span className="text-gray-600 text-xs">Aethrix Token · Solana</span>
           <div className="flex items-center gap-2 border border-gray-800 px-3 py-1">
-            <span className="text-[9px] text-gray-500 uppercase tracking-widest">CA</span>
+            <span className="text-[9px] text-gray-500 uppercase">CA</span>
             <span className="text-[10px] text-aethrix-gold font-mono">{AETH_TOKEN.contract}</span>
             <button onClick={copyCA} className="text-[9px] text-gray-600 hover:text-aethrix-gold transition-colors ml-1">
-              {copied ? '✓ Copied' : 'Copy'}
+              {copied ? '✓' : 'Copy'}
             </button>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex gap-2">
           <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer"
             className="border border-aethrix-gold px-3 py-1 text-[9px] uppercase text-aethrix-gold hover:bg-aethrix-gold hover:text-black transition-all">
-            Buy on pump.fun ↗
+            pump.fun ↗
           </a>
           <a href={AETH_TOKEN.dexUrl} target="_blank" rel="noopener noreferrer"
             className="border border-gray-700 px-3 py-1 text-[9px] uppercase text-gray-400 hover:border-aethrix-cyan hover:text-aethrix-cyan transition-all">
             DexScreener ↗
+          </a>
+          <a href={AETH_TOKEN.jupiterUrl} target="_blank" rel="noopener noreferrer"
+            className="border border-gray-700 px-3 py-1 text-[9px] uppercase text-gray-400 hover:border-purple-500 hover:text-purple-400 transition-all">
+            Jupiter ↗
           </a>
         </div>
       </div>
 
       <div className="p-6 max-w-6xl mx-auto">
 
-        {/* ── Header ───────────────────────────────────────────────── */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-6 border-b border-gray-800 pb-4">
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="text-gray-500 hover:text-white text-[10px] uppercase">← Back</button>
@@ -105,113 +104,45 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
           </div>
         </div>
 
-        {/* ── Wallet Panel ─────────────────────────────────────────── */}
-        <div className={`border mb-6 p-4 transition-all ${wallet.connected ? 'border-green-800 bg-green-950/10' : 'border-gray-800 bg-gray-950/50'}`}>
-          <div className="flex flex-wrap items-center justify-between gap-4">
-
-            {/* Left: connection status */}
-            <div className="flex items-center gap-4">
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${wallet.connected ? 'bg-green-400 shadow-[0_0_6px_#4ade80]' : 'bg-gray-700'}`} />
-              <div>
-                <div className="text-[10px] uppercase tracking-widest text-gray-500 mb-0.5">Phantom Wallet</div>
-                {wallet.connected && wallet.publicKey ? (
-                  <div className="text-xs text-white font-mono">
-                    {wallet.publicKey.slice(0, 8)}...{wallet.publicKey.slice(-6)}
-                  </div>
-                ) : (
-                  <div className="text-xs text-gray-600">Not connected</div>
-                )}
-              </div>
-
-              {/* Wallet AETH balance */}
-              {wallet.connected && (
-                <div className="border-l border-gray-800 pl-4">
-                  <div className="text-[10px] text-gray-500 uppercase mb-0.5">
-                    Wallet AETH
-                    <span className="ml-1 text-gray-700 normal-case">({AETH_TOKEN.contract.slice(0,6)}...)</span>
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-aethrix-gold font-bold text-base">
-                      {wallet.aethBalance === null ? (
-                        <span className="text-gray-600 text-xs animate-pulse">Loading...</span>
-                      ) : (
-                        wallet.aethBalance.toLocaleString()
-                      )}
-                    </span>
-                    <span className="text-gray-600 text-[9px]">AETH</span>
-                  </div>
-                </div>
-              )}
-
-              {/* In-game AETH balance */}
-              <div className={`${wallet.connected ? 'border-l border-gray-800 pl-4' : ''}`}>
-                <div className="text-[10px] text-gray-500 uppercase mb-0.5">In-Game AETH</div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-aethrix-gold font-bold text-base">{player.aethBalance.toLocaleString()}</span>
-                  <span className="text-gray-600 text-[9px]">AETH</span>
-                </div>
+        {/* Balance summary */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="border border-gray-800 p-3 flex items-center justify-between">
+            <div>
+              <div className="text-[9px] text-gray-600 uppercase mb-1">Wallet AETH</div>
+              <div className="text-aethrix-gold font-bold text-lg">
+                {walletAethBalance === null ? (
+                  <span className="text-gray-600 text-sm">Connect wallet via top bar</span>
+                ) : walletAethBalance.toLocaleString()}
               </div>
             </div>
-
-            {/* Right: actions */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {wallet.error && (
-                <div className="text-red-400 text-[10px] border border-red-900 px-2 py-1 max-w-[220px]">
-                  {wallet.error}
-                </div>
-              )}
-              {!wallet.connected ? (
-                <button onClick={wallet.connect} disabled={wallet.connecting}
-                  className="border border-aethrix-gold px-5 py-2 text-[10px] uppercase tracking-widest hover:bg-aethrix-gold hover:text-black transition-all disabled:opacity-40">
-                  {wallet.connecting ? (
-                    <span className="flex items-center gap-2">
-                      <span className="animate-spin">◌</span> Connecting...
-                    </span>
-                  ) : 'Connect Phantom'}
-                </button>
-              ) : (
-                <>
-                  <button onClick={wallet.refreshBalance}
-                    className="border border-gray-700 px-3 py-2 text-[10px] uppercase hover:border-aethrix-cyan hover:text-aethrix-cyan transition-all">
-                    ↻ Refresh
-                  </button>
-                  <button onClick={wallet.disconnect}
-                    className="border border-gray-700 px-3 py-2 text-[10px] uppercase hover:border-red-600 hover:text-red-400 transition-all">
-                    Disconnect
-                  </button>
-                </>
-              )}
-              <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer"
-                className="border border-aethrix-gold/50 px-3 py-2 text-[10px] uppercase text-aethrix-gold hover:bg-aethrix-gold hover:text-black transition-all">
-                Get AETH ↗
-              </a>
+            <div className="text-[9px] text-gray-700 font-mono text-right">
+              {AETH_TOKEN.contract.slice(0, 8)}...<br />{AETH_TOKEN.contract.slice(-8)}
             </div>
           </div>
-
-          {/* CA row always visible */}
-          <div className="mt-3 pt-3 border-t border-gray-900 flex items-center gap-3">
-            <span className="text-[9px] text-gray-600 uppercase tracking-widest">Token Contract</span>
-            <span className="text-[10px] text-aethrix-gold/70 font-mono">{AETH_TOKEN.contract}</span>
-            <button onClick={copyCA} className="text-[9px] border border-gray-800 px-2 py-0.5 hover:border-aethrix-gold hover:text-aethrix-gold transition-all">
-              {copied ? '✓ Copied' : 'Copy CA'}
-            </button>
-            <span className="text-[9px] text-gray-700">· Solana · pump.fun</span>
+          <div className="border border-gray-800 p-3 flex items-center justify-between">
+            <div>
+              <div className="text-[9px] text-gray-600 uppercase mb-1">In-Game AETH</div>
+              <div className="text-aethrix-gold font-bold text-lg">{player.aethBalance.toLocaleString()}</div>
+            </div>
+            <div className="text-[9px] text-gray-600 text-right">
+              Earned from<br />combat & quests
+            </div>
           </div>
         </div>
 
-        {/* ── Branch Tabs ──────────────────────────────────────────── */}
+        {/* Branch tabs */}
         <div className="grid grid-cols-4 gap-2 mb-6">
           {(Object.keys(BRANCH_META) as Branch[]).map(branch => {
             const meta = BRANCH_META[branch];
-            const done = SKILL_TREE.filter(n => n.branch === branch && isUnlocked(n.id)).length;
+            const done  = SKILL_TREE.filter(n => n.branch === branch && isUnlocked(n.id)).length;
             const total = SKILL_TREE.filter(n => n.branch === branch).length;
-            const pct = Math.round((done / total) * 100);
+            const pct   = Math.round((done / total) * 100);
             return (
               <button key={branch} onClick={() => { setActiveBranch(branch); setSelectedNode(null); }}
-                className={`border py-3 px-4 text-left transition-all relative overflow-hidden ${activeBranch === branch ? `${meta.color} ${meta.bg}` : 'border-gray-800 hover:border-gray-600'}`}>
-                {/* Progress bar */}
-                <div className={`absolute bottom-0 left-0 h-0.5 transition-all ${activeBranch === branch ? meta.color.replace('border-', 'bg-') : 'bg-gray-800'}`}
-                  style={{ width: `${pct}%` }} />
+                className={`border py-3 px-4 text-left transition-all relative overflow-hidden
+                  ${activeBranch === branch ? `${meta.color} ${meta.bg}` : 'border-gray-800 hover:border-gray-600'}`}>
+                <div className={`absolute bottom-0 left-0 h-0.5 transition-all bg-current`}
+                  style={{ width: `${pct}%`, color: activeBranch === branch ? 'currentColor' : 'transparent' }} />
                 <div className={`text-[10px] font-bold uppercase tracking-widest ${activeBranch === branch ? meta.text : 'text-gray-500'}`}>
                   {meta.label}
                 </div>
@@ -221,10 +152,10 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
           })}
         </div>
 
-        {/* ── Main Grid ────────────────────────────────────────────── */}
+        {/* Main grid */}
         <div className="grid md:grid-cols-2 gap-6">
 
-          {/* Skill Nodes */}
+          {/* Node list */}
           <div className="space-y-2">
             {branchNodes.map((node, i) => {
               const unlocked = isUnlocked(node.id);
@@ -234,25 +165,19 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
                 <motion.button key={node.id}
                   initial={{ opacity: 0, x: -15 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}
                   onClick={() => setSelectedNode(selectedNode?.id === node.id ? null : node)}
-                  className={`w-full text-left border p-4 transition-all ${
-                    unlocked ? `${meta.color} ${meta.bg}` :
-                    ok ? 'border-gray-700 hover:border-gray-500 hover:bg-white/5' :
-                    'border-gray-900 opacity-40'
-                  } ${selectedNode?.id === node.id ? `ring-1 ${meta.ring}` : ''}`}>
+                  className={`w-full text-left border p-4 transition-all
+                    ${unlocked ? `${meta.color} ${meta.bg}` : ok ? 'border-gray-700 hover:border-gray-500 hover:bg-white/5' : 'border-gray-900 opacity-40'}
+                    ${selectedNode?.id === node.id ? `ring-1 ${meta.ring}` : ''}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className={`text-[8px] border px-1 ${meta.color} ${meta.text}`}>T{node.tier}</span>
-                      <span className={`font-bold text-sm ${unlocked ? meta.text : ok ? 'text-white' : 'text-gray-600'}`}>
-                        {node.name}
-                      </span>
+                      <span className={`font-bold text-sm ${unlocked ? meta.text : ok ? 'text-white' : 'text-gray-600'}`}>{node.name}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       {unlocked
                         ? <span className="text-[9px] text-green-400">✓ UNLOCKED</span>
-                        : !ok
-                          ? <span className="text-[9px] text-gray-700">🔒 {reason}</span>
-                          : null
-                      }
+                        : !ok ? <span className="text-[9px] text-gray-700">🔒 {reason}</span>
+                        : null}
                       <span className={`text-[10px] font-bold ${unlocked ? 'text-gray-600 line-through' : 'text-aethrix-gold'}`}>
                         {node.aethCost} AETH
                       </span>
@@ -260,17 +185,15 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
                   </div>
                   <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">{node.description}</p>
                   {node.abilityUnlock && (
-                    <div className={`text-[9px] mt-1 ${unlocked ? meta.text : 'text-gray-700'}`}>
-                      ★ {node.abilityUnlock}
-                    </div>
+                    <div className={`text-[9px] mt-1 ${unlocked ? meta.text : 'text-gray-700'}`}>★ {node.abilityUnlock}</div>
                   )}
                 </motion.button>
               );
             })}
           </div>
 
-          {/* Detail Panel */}
-          <div className="sticky top-6 space-y-4">
+          {/* Detail panel */}
+          <div className="sticky top-16">
             <AnimatePresence mode="wait">
               {selectedNode ? (() => {
                 const node = selectedNode;
@@ -290,7 +213,6 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
                     <h2 className={`text-xl font-black uppercase mb-2 ${unlocked ? meta.text : 'text-white'}`}>{node.name}</h2>
                     <p className="text-gray-400 text-sm leading-relaxed mb-4">{node.description}</p>
 
-                    {/* Stat bonuses */}
                     {node.statBonus && Object.keys(node.statBonus).length > 0 && (
                       <div className="mb-4">
                         <div className={`text-[9px] uppercase tracking-widest mb-2 ${meta.text}`}>Stat Bonuses</div>
@@ -306,7 +228,7 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
                     )}
 
                     {(node.hpBonus || node.mpBonus) && (
-                      <div className="flex gap-4 mb-4">
+                      <div className="flex gap-3 mb-4">
                         {node.hpBonus && <div className="text-xs border border-red-900 px-2 py-1"><span className="text-red-400">HP</span> <span className="text-green-400 font-bold">+{node.hpBonus}</span></div>}
                         {node.mpBonus && <div className="text-xs border border-cyan-900 px-2 py-1"><span className="text-cyan-400">MP</span> <span className="text-green-400 font-bold">+{node.mpBonus}</span></div>}
                       </div>
@@ -314,11 +236,10 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
 
                     {node.abilityUnlock && (
                       <div className={`border ${meta.color} ${meta.bg} p-2 mb-4 text-xs ${meta.text}`}>
-                        ★ Unlocks Ability: <span className="font-bold">{node.abilityUnlock}</span>
+                        ★ Unlocks: <span className="font-bold">{node.abilityUnlock}</span>
                       </div>
                     )}
 
-                    {/* Dependencies */}
                     {node.dependencies.length > 0 && (
                       <div className="mb-4">
                         <div className="text-[9px] text-gray-600 uppercase tracking-widest mb-1">Prerequisites</div>
@@ -333,19 +254,17 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
                       </div>
                     )}
 
-                    {/* Cost box */}
                     <div className="border border-gray-800 p-3 mb-4 flex items-center justify-between">
                       <div>
                         <div className="text-[9px] text-gray-600 uppercase mb-1">Cost</div>
                         <div className="text-aethrix-gold font-bold text-xl">{node.aethCost} AETH</div>
                       </div>
                       <div className="text-right">
-                        <div className="text-[9px] text-gray-600 uppercase mb-1">Token</div>
-                        <div className="text-[9px] text-aethrix-gold/60 font-mono">{AETH_TOKEN.contract.slice(0,8)}...</div>
+                        <div className="text-[9px] text-gray-600 uppercase mb-1">Token CA</div>
+                        <div className="text-[9px] text-aethrix-gold/50 font-mono">{AETH_TOKEN.contract.slice(0, 10)}...</div>
                       </div>
                     </div>
 
-                    {/* Action buttons */}
                     {unlocked ? (
                       <div className={`border ${meta.color} py-3 text-center text-sm ${meta.text} font-bold uppercase tracking-widest`}>
                         ✓ Skill Unlocked
@@ -355,41 +274,30 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
                     ) : (
                       <div className="space-y-2">
                         {/* Wallet AETH */}
-                        <div>
-                          <button onClick={() => setConfirmNode({ node, source: 'wallet' })}
-                            disabled={!wallet.connected || !affordWallet}
-                            className="w-full border border-aethrix-gold py-3 text-[10px] uppercase tracking-widest hover:bg-aethrix-gold hover:text-black transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-                            {!wallet.connected
-                              ? '🔗 Connect Phantom to use wallet AETH'
-                              : !affordWallet
-                                ? `Insufficient wallet AETH (have ${wallet.aethBalance ?? 0}, need ${node.aethCost})`
-                                : `Unlock with Wallet AETH — ${wallet.aethBalance?.toLocaleString()} available`
-                            }
-                          </button>
-                          {!wallet.connected && (
-                            <button onClick={wallet.connect}
-                              className="w-full mt-1 border border-aethrix-gold/40 py-2 text-[9px] uppercase text-aethrix-gold/70 hover:border-aethrix-gold hover:text-aethrix-gold transition-all">
-                              Connect Phantom Wallet
-                            </button>
-                          )}
-                        </div>
+                        <button onClick={() => setConfirmNode({ node, source: 'wallet' })}
+                          disabled={!affordWallet}
+                          className="w-full border border-aethrix-gold py-3 text-[10px] uppercase tracking-widest hover:bg-aethrix-gold hover:text-black transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                          {walletAethBalance === null
+                            ? '🔗 Connect Phantom via top bar'
+                            : !affordWallet
+                              ? `Wallet AETH insufficient (${walletAethBalance.toLocaleString()} / ${node.aethCost})`
+                              : `Unlock with Wallet AETH — ${walletAethBalance.toLocaleString()} available`}
+                        </button>
 
                         {/* In-game AETH */}
                         <button onClick={() => setConfirmNode({ node, source: 'ingame' })}
                           disabled={!affordIngame}
                           className="w-full border border-gray-600 py-3 text-[10px] uppercase tracking-widest hover:border-aethrix-gold hover:text-aethrix-gold transition-all disabled:opacity-30 disabled:cursor-not-allowed">
                           {!affordIngame
-                            ? `Insufficient in-game AETH (have ${player.aethBalance}, need ${node.aethCost})`
-                            : `Unlock with In-Game AETH — ${player.aethBalance} available`
-                          }
+                            ? `In-Game AETH insufficient (${player.aethBalance} / ${node.aethCost})`
+                            : `Unlock with In-Game AETH — ${player.aethBalance} available`}
                         </button>
 
-                        {/* Get AETH CTA */}
                         {!affordWallet && !affordIngame && (
                           <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer"
                             className="flex items-center justify-between border border-aethrix-gold/40 px-4 py-3 text-[10px] text-aethrix-gold hover:bg-aethrix-gold hover:text-black transition-all group">
                             <span className="uppercase tracking-widest">Buy AETH on pump.fun</span>
-                            <span className="font-mono text-[9px] group-hover:text-black">{AETH_TOKEN.contract.slice(0,12)}...</span>
+                            <span className="font-mono text-[9px] group-hover:text-black">{AETH_TOKEN.contract.slice(0, 14)}...</span>
                           </a>
                         )}
                       </div>
@@ -399,7 +307,7 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
               })() : (
                 <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                   className="border border-gray-800 p-8 text-center">
-                  <div className="text-gray-700 text-sm mb-4">Select a skill to view details</div>
+                  <div className="text-gray-700 text-sm mb-3">Select a skill to view details</div>
                   <div className="text-[9px] text-gray-800 font-mono">{AETH_TOKEN.contract}</div>
                 </motion.div>
               )}
@@ -408,7 +316,7 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
         </div>
       </div>
 
-      {/* ── Confirm Modal ────────────────────────────────────────── */}
+      {/* Confirm modal */}
       <AnimatePresence>
         {confirmNode && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -429,30 +337,27 @@ export default function SkillTreeView({ player, unlockedSkills, onUnlock, onBack
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500">Source</span>
-                  <span className="text-white font-bold capitalize">
+                  <span className="text-white font-bold">
                     {confirmNode.source === 'wallet' ? '🔗 Phantom Wallet' : '🎮 In-Game Balance'}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Token</span>
+                  <span className="text-gray-500">Token CA</span>
                   <span className="text-aethrix-gold/60 font-mono text-[9px]">{AETH_TOKEN.contract}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-gray-500">Balance after</span>
                   <span className="text-white font-bold">
                     {confirmNode.source === 'wallet'
-                      ? `${((wallet.aethBalance ?? 0) - confirmNode.node.aethCost).toLocaleString()} AETH`
-                      : `${player.aethBalance - confirmNode.node.aethCost} AETH`
-                    }
+                      ? `${((walletAethBalance ?? 0) - confirmNode.node.aethCost).toLocaleString()} AETH`
+                      : `${player.aethBalance - confirmNode.node.aethCost} AETH`}
                   </span>
                 </div>
               </div>
 
               {confirmNode.source === 'wallet' && (
                 <div className="border border-yellow-900/50 bg-yellow-950/20 p-3 mb-4 text-[9px] text-yellow-500 leading-relaxed">
-                  Your real Phantom wallet AETH balance is verified on-chain via the Solana RPC.
-                  The deduction is tracked in-game — no on-chain transaction is sent.
-                  To spend real AETH, use the in-game economy or visit pump.fun.
+                  Your Phantom wallet AETH balance is verified on-chain. The deduction is tracked in-game only — no on-chain transaction is sent.
                 </div>
               )}
 

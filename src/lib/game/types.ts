@@ -151,7 +151,7 @@ export interface Character {
 }
 
 export interface GameState {
-  phase: 'LANDING' | 'CHARACTER_CREATION' | 'STORY' | 'WORLD' | 'COMBAT' | 'MARKET' | 'BLACKSMITH' | 'QUEST_BOARD' | 'SAFE_HUB' | 'SKILL_TREE';
+  phase: 'LANDING' | 'CHARACTER_CREATION' | 'STORY' | 'WORLD' | 'COMBAT' | 'MARKET' | 'BLACKSMITH' | 'QUEST_BOARD' | 'SAFE_HUB' | 'SKILL_TREE' | 'SAVE_LOAD';
   party: Character[];
   activeAreaId: string | null;
   activeContinentId: string | null;
@@ -161,5 +161,8 @@ export interface GameState {
   enemies: Character[];
   combatReturnPhase: 'WORLD' | 'STORY';
   unlockedSkills: string[];
+  walletPublicKey: string | null;       // connected Phantom wallet
+  walletAethBalance: number | null;     // last fetched on-chain balance
+  walletAethSpent: number;              // total spent via wallet this session
   log: string[];
 }

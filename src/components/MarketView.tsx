@@ -8,8 +8,9 @@ import { AETH_TOKEN, canAffordAeth, canAffordGold } from '@/lib/game/token';
 interface Props {
   area: Area;
   player: Character;
+  walletAethBalance: number | null;
   isBlacksmith?: boolean;
-  onBuy: (item: Item, currency: 'aeth' | 'gold') => void;
+  onBuy: (item: Item, currency: 'aeth' | 'gold' | 'wallet_aeth') => void;
   onBack: () => void;
 }
 
@@ -24,7 +25,7 @@ const rarityBg: Record<ItemRarity, string> = {
   Common: '', Uncommon: 'bg-green-950/20', Rare: 'bg-blue-950/20', Legendary: 'bg-purple-950/30',
 };
 
-export default function MarketView({ area, player, isBlacksmith = false, onBuy, onBack }: Props) {
+export default function MarketView({ area, player, walletAethBalance, isBlacksmith = false, onBuy, onBack }: Props) {
   const [selected, setSelected] = useState<Item | null>(null);
   const source = isBlacksmith ? area.blacksmith : area.market;
   const itemIds = source?.itemIds || [];
@@ -47,6 +48,9 @@ export default function MarketView({ area, player, isBlacksmith = false, onBuy, 
         {/* Wallet */}
         <div className="flex gap-6 mb-6 border border-gray-800 p-3 w-fit">
           <div className="text-xs"><span className="text-aethrix-gold">AETH</span> <span className="font-bold">{player.aethBalance}</span></div>
+          {walletAethBalance !== null && (
+            <div className="text-xs"><span className="text-aethrix-gold/60">Wallet</span> <span className="font-bold">{walletAethBalance.toLocaleString()}</span></div>
+          )}
           <div className="text-xs"><span className="text-yellow-600">Gold</span> <span className="font-bold">{player.gold}</span></div>
           <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer"
             className="text-[9px] text-aethrix-gold border border-aethrix-gold/30 px-2 hover:bg-aethrix-gold hover:text-black transition-all">
@@ -118,28 +122,37 @@ export default function MarketView({ area, player, isBlacksmith = false, onBuy, 
                 </div>
 
                 <div className="space-y-2">
+                  {/* In-game AETH */}
                   <button
                     onClick={() => onBuy(selected, 'aeth')}
                     disabled={!canAffordAeth(player.aethBalance, selected.aethCost)}
                     className="w-full border border-aethrix-gold py-2 text-[10px] uppercase tracking-widest hover:bg-aethrix-gold hover:text-black transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-                    Buy with AETH ({selected.aethCost})
+                    In-Game AETH ({player.aethBalance} available)
                   </button>
+                  {/* Wallet AETH */}
+                  {walletAethBalance !== null && (
+                    <button
+                      onClick={() => onBuy(selected, 'wallet_aeth')}
+                      disabled={walletAethBalance < selected.aethCost}
+                      className="w-full border border-aethrix-gold/50 py-2 text-[10px] uppercase tracking-widest hover:bg-aethrix-gold/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                      Wallet AETH ({walletAethBalance.toLocaleString()} available)
+                    </button>
+                  )}
+                  {/* Gold */}
                   {selected.goldCost && !selected.blacksmithOnly && (
                     <button
                       onClick={() => onBuy(selected, 'gold')}
                       disabled={!canAffordGold(player.gold, selected.goldCost)}
                       className="w-full border border-yellow-700 py-2 text-[10px] uppercase tracking-widest hover:bg-yellow-900/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
-                      Buy with Gold ({selected.goldCost}g)
+                      Gold ({selected.goldCost}g)
                     </button>
                   )}
                   {selected.blacksmithOnly && (
-                    <div className="text-[9px] text-purple-400 text-center border border-purple-900 py-2">
-                      ★ Legendary — AETH Only
-                    </div>
+                    <div className="text-[9px] text-purple-400 text-center border border-purple-900 py-2">★ Legendary — AETH Only</div>
                   )}
                 </div>
 
-                {!canAffordAeth(player.aethBalance, selected.aethCost) && (
+                {!canAffordAeth(player.aethBalance, selected.aethCost) && (walletAethBalance === null || walletAethBalance < selected.aethCost) && (
                   <a href={AETH_TOKEN.buyUrl} target="_blank" rel="noopener noreferrer"
                     className="block mt-3 text-center text-[9px] text-aethrix-gold border border-aethrix-gold/30 py-2 hover:bg-aethrix-gold hover:text-black transition-all">
                     Get AETH on pump.fun ↗
