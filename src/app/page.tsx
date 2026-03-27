@@ -76,6 +76,9 @@ export default function Home() {
   const [gs, setGs] = useState<GameState>(makeInitialState);
   const [activeArea, setActiveArea] = useState<Area | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+  const [saveExists, setSaveExists] = useState(false);
+
+  React.useEffect(() => { setSaveExists(hasSave()); }, []);
 
   const notify = (msg: string) => {
     setNotification(msg);
@@ -187,12 +190,12 @@ export default function Home() {
   };
 
   // ── Save / Load ──────────────────────────────────────────────────────────
-  const handleSave = () => { saveGame(gs); notify('Game saved.'); };
+  const handleSave = () => { saveGame(gs); setSaveExists(true); notify('Game saved.'); };
   const handleLoad = () => {
     const saved = loadGame();
     if (saved) { setGs(saved); notify('Game loaded.'); }
   };
-  const handleNewGame = () => { deleteSave(); setGs({ ...makeInitialState(), phase: 'CHARACTER_CREATION' }); };
+  const handleNewGame = () => { deleteSave(); setSaveExists(false); setGs({ ...makeInitialState(), phase: 'CHARACTER_CREATION' }); };
 
   // ── RENDER ───────────────────────────────────────────────────────────────
 
@@ -321,7 +324,7 @@ export default function Home() {
           <span className="text-gray-700 text-[8px] self-center">{AETH_TOKEN.contract.slice(0, 8)}...{AETH_TOKEN.contract.slice(-6)}</span>
         </div>
         <div className="flex gap-3">
-          {hasSave() && (
+          {saveExists && (
             <button onClick={handleLoad} className="px-4 py-2 border border-gray-600 text-[10px] tracking-widest hover:border-aethrix-cyan hover:text-aethrix-cyan transition-all">
               CONTINUE
             </button>
@@ -359,7 +362,7 @@ export default function Home() {
               className="px-12 py-4 bg-aethrix-gold text-black font-black uppercase tracking-widest hover:bg-white transition-all transform hover:-translate-y-1">
               Begin the Chronicle
             </button>
-            {hasSave() && (
+            {saveExists && (
               <button onClick={handleLoad}
                 className="px-12 py-4 border border-aethrix-gold text-aethrix-gold font-black uppercase tracking-widest hover:bg-aethrix-gold hover:text-black transition-all">
                 Continue
