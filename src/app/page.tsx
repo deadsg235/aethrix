@@ -9,12 +9,11 @@ import { RACES, SUBRACES, CLASSES } from '@/lib/game/data';
 import { createCharacter } from '@/lib/game/character';
 import { ALL_QUESTS } from '@/lib/game/quests';
 import { ITEMS } from '@/lib/game/items';
-import { AETH_TOKEN, STARTING_AETH, STARTING_GOLD } from '@/lib/game/token';
+import { AETH_TOKEN } from '@/lib/game/token';
 import {
   autoSave, hasAnySave, loadAuto,
-  saveToSlot, loadSlot, deleteSlot, getAllSaveMeta,
 } from '@/lib/game/save';
-import { SKILL_TREE, SkillNode } from '@/lib/game/skilltree';
+import { SkillNode } from '@/lib/game/skilltree';
 
 import Logo from '@/components/Logo';
 import CharacterCreation from '@/components/CharacterCreation';
@@ -28,12 +27,49 @@ import SkillTreeView from '@/components/SkillTreeView';
 import SaveLoadScreen from '@/components/SaveLoadScreen';
 import WalletBar from '@/components/WalletBar';
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-const IN_GAME_PHASES = new Set([
-  'WORLD', 'COMBAT', 'MARKET', 'BLACKSMITH',
-  'QUEST_BOARD', 'SAFE_HUB', 'SKILL_TREE', 'STORY', 'SAVE_LOAD',
-]);
+// ── GameShell — defined OUTSIDE Home to keep stable component identity ────────
+interface GameShellProps {
+  player: Character | undefined;
+  notification: string | null;
+  onWalletConnect: (pk: string, bal: number) => void;
+  onWalletDisconnect: () => void;
+  onWalletBalanceUpdate: (bal: number) => void;
+  onOpenSaveLoad: () => void;
+  onOpenSkillTree: () => void;
+  children: React.ReactNode;
+}
 
+function GameShell({
+  player, notification,
+  onWalletConnect, onWalletDisconnect, onWalletBalanceUpdate,
+  onOpenSaveLoad, onOpenSkillTree, children,
+}: GameShellProps) {
+  return (
+    <div className="pt-10">
+      <WalletBar
+        player={player}
+        onWalletConnect={onWalletConnect}
+        onWalletDisconnect={onWalletDisconnect}
+        onWalletBalanceUpdate={onWalletBalanceUpdate}
+        onOpenSaveLoad={onOpenSaveLoad}
+        onOpenSkillTree={onOpenSkillTree}
+      />
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="fixed top-12 right-4 z-50 bg-black border border-aethrix-gold px-4 py-2 text-xs text-aethrix-gold uppercase tracking-widest shadow-lg pointer-events-none"
+          >
+            {notification}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {children}
+    </div>
+  );
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 function spawnEnemies(areaId: string, playerLevel: number): Character[] {
   const templates: Record<string, { name: string; raceIdx: number; classIdx: number }[]> = {
     default:                [{ name: 'Void Abomination',     raceIdx: 7, classIdx: 2 }],
@@ -329,30 +365,16 @@ export default function Home() {
     if (saved) { setGs({ ...saved.state, phase: 'WORLD' }); notify('Game loaded.'); }
   }, [notify]);
 
-  // ── Shared WalletBar wrapper ──────────────────────────────────────────────
-  const GameShell = ({ children }: { children: React.ReactNode }) => (
-    <div className="pt-10">
-      <WalletBar
-        player={player}
-        onWalletConnect={handleWalletConnect}
-        onWalletDisconnect={handleWalletDisconnect}
-        onWalletBalanceUpdate={handleWalletBalanceUpdate}
-        onOpenSaveLoad={() => goTo('SAVE_LOAD')}
-        onOpenSkillTree={() => goTo('SKILL_TREE')}
-      />
-      <AnimatePresence>
-        {notification && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="fixed top-12 right-4 z-50 bg-black border border-aethrix-gold px-4 py-2 text-xs text-aethrix-gold uppercase tracking-widest shadow-lg"
-          >
-            {notification}
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {children}
-    </div>
-  );
+  // shell props — memoized so WalletBar effects don't fire on every render
+  const shellProps = React.useMemo(() => ({
+    player,
+    notification,
+    onWalletConnect: handleWalletConnect,
+    onWalletDisconnect: handleWalletDisconnect,
+    onWalletBalanceUpdate: handleWalletBalanceUpdate,
+    onOpenSaveLoad: () => goTo('SAVE_LOAD'),
+    onOpenSkillTree: () => goTo('SKILL_TREE'),
+  }), [player, notification, handleWalletConnect, handleWalletDisconnect, handleWalletBalanceUpdate, goTo]);
 
   // ── RENDER ────────────────────────────────────────────────────────────────
 
@@ -362,7 +384,7 @@ export default function Home() {
 
   if (gs.phase === 'STORY') {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <StoryView
           nodeId={gs.storyNodeId}
           flags={gs.storyFlags}
@@ -375,7 +397,7 @@ export default function Home() {
 
   if (gs.phase === 'WORLD') {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <WorldView
           party={gs.party}
           onEnterArea={handleEnterArea}
@@ -392,7 +414,7 @@ export default function Home() {
 
   if (gs.phase === 'QUEST_BOARD' && gs.activeAreaId) {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <QuestBoard
           areaId={gs.activeAreaId}
           activeQuests={gs.quests}
@@ -406,7 +428,7 @@ export default function Home() {
 
   if (gs.phase === 'MARKET' && activeArea) {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <MarketView
           area={activeArea}
           player={player}
@@ -421,7 +443,7 @@ export default function Home() {
 
   if (gs.phase === 'BLACKSMITH' && activeArea) {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <MarketView
           area={activeArea}
           player={player}
@@ -436,7 +458,7 @@ export default function Home() {
 
   if (gs.phase === 'SAFE_HUB' && activeArea) {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <SafeHubView
           area={activeArea}
           player={player}
@@ -450,7 +472,7 @@ export default function Home() {
 
   if (gs.phase === 'SKILL_TREE') {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <SkillTreeView
           player={player}
           walletAethBalance={gs.walletAethBalance}
@@ -464,7 +486,7 @@ export default function Home() {
 
   if (gs.phase === 'SAVE_LOAD') {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <SaveLoadScreen
           currentState={gs}
           onLoad={handleLoadState}
@@ -476,7 +498,7 @@ export default function Home() {
 
   if (gs.phase === 'COMBAT') {
     return (
-      <GameShell>
+      <GameShell {...shellProps}>
         <main className="flex min-h-screen flex-col items-center justify-center p-8 font-mono bg-black text-aethrix-gold overflow-hidden">
           <CombatView
             party={gs.party}
