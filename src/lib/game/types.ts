@@ -151,7 +151,7 @@ export interface Character {
 }
 
 export interface GameState {
-  phase: 'LANDING' | 'CHARACTER_CREATION' | 'STORY' | 'WORLD' | 'COMBAT' | 'MARKET' | 'BLACKSMITH' | 'QUEST_BOARD' | 'SAFE_HUB';
+  phase: 'LANDING' | 'CHARACTER_CREATION' | 'STORY' | 'WORLD' | 'COMBAT' | 'MARKET' | 'BLACKSMITH' | 'QUEST_BOARD' | 'SAFE_HUB' | 'SKILL_TREE';
   party: Character[];
   activeAreaId: string | null;
   activeContinentId: string | null;
@@ -160,5 +160,6 @@ export interface GameState {
   storyFlags: string[];
   enemies: Character[];
   combatReturnPhase: 'WORLD' | 'STORY';
+  unlockedSkills: string[];
   log: string[];
 }

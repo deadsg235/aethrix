@@ -12,12 +12,13 @@ interface Props {
   onOpenBlacksmith: (area: Area) => void;
   onOpenSafeHub: (area: Area) => void;
   onOpenStory: () => void;
+  onOpenSkillTree: () => void;
 }
 
 const dangerColor = ['', 'text-green-400', 'text-yellow-400', 'text-orange-400', 'text-red-400', 'text-red-600'];
 const dangerLabel = ['', 'Safe', 'Low', 'Moderate', 'Dangerous', 'Lethal'];
 
-export default function WorldView({ party, onEnterArea, onOpenQuestBoard, onOpenMarket, onOpenBlacksmith, onOpenSafeHub, onOpenStory }: Props) {
+export default function WorldView({ party, onEnterArea, onOpenQuestBoard, onOpenMarket, onOpenBlacksmith, onOpenSafeHub, onOpenStory, onOpenSkillTree }: Props) {
   const [selectedContinent, setSelectedContinent] = useState<Continent | null>(null);
   const [selectedArea, setSelectedArea] = useState<Area | null>(null);
   const player = party[0];
@@ -37,6 +38,9 @@ export default function WorldView({ party, onEnterArea, onOpenQuestBoard, onOpen
           <div><span className="text-red-400">HP</span> <span className="text-white font-bold">{Math.ceil(player?.hp.current)}/{player?.hp.max}</span></div>
           <div><span className="text-aethrix-gold">AETH</span> <span className="text-white font-bold">{player?.aethBalance}</span></div>
           <div><span className="text-yellow-600">Gold</span> <span className="text-white font-bold">{player?.gold}</span></div>
+          <button onClick={onOpenSkillTree} className="border border-purple-700 px-3 py-1 text-[10px] uppercase hover:border-purple-400 hover:text-purple-400 transition-all">
+            Skill Tree
+          </button>
           <button onClick={onOpenStory} className="border border-gray-700 px-3 py-1 text-[10px] uppercase hover:border-aethrix-gold hover:text-aethrix-gold transition-all">
             Story Log
           </button>

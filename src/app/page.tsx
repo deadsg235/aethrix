@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 
-import { GameState, Character, Area, Continent, Quest, Item, StoryChoice } from '@/lib/game/types';
+import { GameState, Character, Area, Continent, Quest, Item, StoryChoice, Stat } from '@/lib/game/types';
 import { RACES, SUBRACES, CLASSES } from '@/lib/game/data';
 import { createCharacter } from '@/lib/game/character';
 import { ALL_QUESTS } from '@/lib/game/quests';
@@ -12,6 +12,7 @@ import { STORY_NODES } from '@/lib/game/story';
 import { ITEMS } from '@/lib/game/items';
 import { AETH_TOKEN, STARTING_AETH, STARTING_GOLD } from '@/lib/game/token';
 import { saveGame, loadGame, deleteSave, hasSave } from '@/lib/game/save';
+import { SKILL_TREE, SkillNode } from '@/lib/game/skilltree';
 
 import Logo from '@/components/Logo';
 import CharacterCreation from '@/components/CharacterCreation';
@@ -21,6 +22,7 @@ import QuestBoard from '@/components/QuestBoard';
 import MarketView from '@/components/MarketView';
 import SafeHubView from '@/components/SafeHubView';
 import CombatView from '@/components/CombatView';
+import SkillTreeView from '@/components/SkillTreeView';
 
 // ── Enemy factory ────────────────────────────────────────────────────────────
 function spawnEnemies(areaId: string, playerLevel: number): Character[] {
@@ -67,6 +69,7 @@ function makeInitialState(): GameState {
     storyFlags: [],
     enemies: [],
     combatReturnPhase: 'WORLD',
+    unlockedSkills: [],
     log: [],
   };
 }
@@ -77,6 +80,7 @@ export default function Home() {
   const [activeArea, setActiveArea] = useState<Area | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [saveExists, setSaveExists] = useState(false);
+  const [walletAethUsed, setWalletAethUsed] = useState(0);
 
   React.useEffect(() => { setSaveExists(hasSave()); }, []);
 
@@ -190,6 +194,29 @@ export default function Home() {
   };
 
   // ── Save / Load ──────────────────────────────────────────────────────────
+  // ── Skill unlock ─────────────────────────────────────────────────────────
+  const handleSkillUnlock = (node: SkillNode, source: 'wallet' | 'ingame') => {
+    setGs(prev => {
+      if (prev.unlockedSkills.includes(node.id)) return prev;
+      const newParty = prev.party.map((c, i) => {
+        if (i !== 0) return c;
+        let updated = { ...c, currentStats: { ...c.currentStats } };
+        if (node.statBonus) {
+          Object.entries(node.statBonus).forEach(([s, v]) => {
+            updated.currentStats[s as Stat] = (updated.currentStats[s as Stat] || 0) + (v || 0);
+          });
+        }
+        if (node.hpBonus) { updated.hp = { ...updated.hp, max: updated.hp.max + node.hpBonus, current: updated.hp.current + node.hpBonus }; }
+        if (node.mpBonus) { updated.mp = { ...updated.mp, max: updated.mp.max + node.mpBonus, current: updated.mp.current + node.mpBonus }; }
+        if (source === 'ingame') updated.aethBalance = updated.aethBalance - node.aethCost;
+        if (source === 'wallet') setWalletAethUsed(prev => prev + node.aethCost);
+        return updated;
+      });
+      return { ...prev, unlockedSkills: [...prev.unlockedSkills, node.id], party: newParty };
+    });
+    notify(`Skill unlocked: ${node.name}`);
+  };
+
   const handleSave = () => { saveGame(gs); setSaveExists(true); notify('Game saved.'); };
   const handleLoad = () => {
     const saved = loadGame();
@@ -224,6 +251,10 @@ export default function Home() {
           </motion.div>
         )}
         <div className="fixed bottom-4 right-4 z-50 flex gap-2">
+          <button onClick={() => setGs(prev => ({ ...prev, phase: 'SKILL_TREE' }))}
+            className="border border-purple-700 px-3 py-1 text-[9px] uppercase hover:border-purple-400 hover:text-purple-400 transition-all bg-black">
+            Skill Tree
+          </button>
           <button onClick={handleSave} className="border border-gray-700 px-3 py-1 text-[9px] uppercase hover:border-aethrix-gold hover:text-aethrix-gold transition-all bg-black">
             Save
           </button>
@@ -238,6 +269,7 @@ export default function Home() {
           onOpenBlacksmith={(area) => { setActiveArea(area); setGs(prev => ({ ...prev, phase: 'BLACKSMITH' })); }}
           onOpenSafeHub={(area) => { setActiveArea(area); setGs(prev => ({ ...prev, phase: 'SAFE_HUB' })); }}
           onOpenStory={() => setGs(prev => ({ ...prev, phase: 'STORY' }))}
+          onOpenSkillTree={() => setGs(prev => ({ ...prev, phase: 'SKILL_TREE' }))}
         />
       </div>
     );
@@ -286,6 +318,17 @@ export default function Home() {
         player={player}
         onRest={handleRest}
         onHeal={handleHeal}
+        onBack={() => setGs(prev => ({ ...prev, phase: 'WORLD' }))}
+      />
+    );
+  }
+
+  if (gs.phase === 'SKILL_TREE') {
+    return (
+      <SkillTreeView
+        player={player}
+        unlockedSkills={gs.unlockedSkills}
+        onUnlock={handleSkillUnlock}
         onBack={() => setGs(prev => ({ ...prev, phase: 'WORLD' }))}
       />
     );
