@@ -103,18 +103,39 @@ function spawnEnemies(areaId: string, playerLevel: number): Character[] {
 function makeInitialState(): GameState {
   return {
     phase: 'LANDING',
+
+    // core
+    act: 1,
+
     party: [],
+    quests: [],
+
+    // world
     activeAreaId: null,
     activeContinentId: null,
-    quests: [],
+    unlockedAreas: [],
+
+    // dungeon system (NEW)
+    activeDungeonId: null,
+    activeDungeonFloor: 0,
+
+    // story
     storyNodeId: 'intro',
     storyFlags: [],
+
+    // combat
     enemies: [],
     combatReturnPhase: 'WORLD',
+
+    // progression
     unlockedSkills: [],
+
+    // wallet
     walletPublicKey: null,
     walletAethBalance: null,
     walletAethSpent: 0,
+
+    // misc
     log: [],
   };
 }
