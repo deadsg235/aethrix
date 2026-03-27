@@ -26,7 +26,6 @@ export default function WalletBar({
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Sync wallet state up to game engine
   React.useEffect(() => {
     if (wallet.connected && wallet.publicKey && wallet.aethBalance !== null) {
       onWalletConnect(wallet.publicKey, wallet.aethBalance);
@@ -77,7 +76,7 @@ export default function WalletBar({
                 {wallet.connected
                   ? wallet.aethBalance === null
                     ? <span className="text-gray-600 animate-pulse">...</span>
-                    : wallet.aethBalance.toLocaleString()
+                    : wallet.aethBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })
                   : '—'
                 }
               </div>
@@ -175,7 +174,7 @@ export default function WalletBar({
               <div className="flex items-center gap-3">
                 <div className="text-center border border-gray-800 px-4 py-2">
                   <div className="text-[9px] text-gray-600 uppercase">On-Chain AETH</div>
-                  <div className="text-aethrix-gold font-bold text-lg">{wallet.aethBalance?.toLocaleString() ?? '—'}</div>
+                  <div className="text-aethrix-gold font-bold text-lg">{wallet.aethBalance?.toLocaleString(undefined, { maximumFractionDigits: 2 }) ?? '—'}</div>
                 </div>
                 <div className="flex flex-col gap-1">
                   <button onClick={wallet.refreshBalance}
