@@ -1,5 +1,9 @@
-import { Character, Class, Race, SubRace, Stat, Stats } from './types';
+import { Character, Class, Race, SubRace, Stat, Stats, ElementalResistance } from './types';
 import { STARTING_AETH, STARTING_GOLD } from './token';
+
+export const DEFAULT_RESISTANCES: ElementalResistance = {
+  Physical: 0, Fire: 0, Water: 0, Air: 0, Earth: 0, Aether: 0, Void: 0, Light: 0, Dark: 0
+};
 
 export function calculateStats(baseStats: Stats, race: Race, subRace: SubRace): Stats {
   const s = { ...baseStats };
@@ -18,8 +22,11 @@ export function createCharacter(name: string, race: Race, subRace: SubRace, char
     name, level: 1, exp: 0,
     race, subRace, characterClass: charClass,
     baseStats, currentStats,
+    elementalResistance: { ...DEFAULT_RESISTANCES },
     hp: { current: maxHP, max: maxHP },
     mp: { current: maxMP, max: maxMP },
+    skillPoints: 0,
+    attributePoints: 0,
     statusEffects: [],
     gold: 0, aethBalance: 0, inventory: [],
   };

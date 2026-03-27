@@ -19,19 +19,46 @@ export interface SubRace {
   passiveAbility: string;
 }
 
+export type TargetType = 'Self' | 'SingleEnemy' | 'AllEnemies' | 'SingleAlly' | 'AllAllies' | 'RandomEnemy';
+
+export interface Ability {
+  id: string;
+  name: string;
+  description: string;
+  type: 'Physical' | 'Magical' | 'Status' | 'Heal';
+  element: ElementalType;
+  mpCost: number;
+  aethCost?: number;
+  cooldown: number;
+  target: TargetType;
+  magnitude: number; // multiplier or base value
+  statusEffects?: string[]; // IDs of StatusEffects
+  requiredLevel: number;
+  icon?: string;
+}
+
 export interface Class {
   name: string;
   description: string;
   lore: string;
   baseStats: Stats;
-  abilities: string[];
-  advancedAbilities: string[];   // unlocked at level 30+
-  masterAbilities: string[];     // unlocked at level 60+
-  legendaryAbility: string;      // unlocked at level 100
+  abilityIds: string[];
+  advancedAbilityIds: string[];   // unlocked at level 30+
+  masterAbilityIds: string[];     // unlocked at level 60+
+  legendaryAbilityId: string;      // unlocked at level 100
 }
 
 export type ItemRarity = 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic';
 export type ItemType = 'Weapon' | 'Armor' | 'Consumable' | 'Relic' | 'Token' | 'Crafting' | 'Key';
+
+export type ElementalType = 'Physical' | 'Fire' | 'Water' | 'Air' | 'Earth' | 'Aether' | 'Void' | 'Light' | 'Dark';
+
+export type ElementalResistance = Record<ElementalType, number>;
+
+export interface Ingredient {
+  itemId: string;
+  quantity: number;
+}
 
 export interface Item {
   id: string;
@@ -40,14 +67,16 @@ export interface Item {
   lore?: string;
   type: ItemType;
   rarity: ItemRarity;
+  element?: ElementalType;
   statBonus?: Partial<Stats>;
+  elementalResistance?: Partial<ElementalResistance>;
   hpBonus?: number;
   mpBonus?: number;
   aethCost: number;
   walletAethCost?: number;
   goldCost?: number;
   blacksmithOnly?: boolean;
-  craftingRecipe?: string[];     // item ids required to craft
+  craftingRecipe?: Ingredient[];     // item ids and quantities required
   requiredLevel?: number;
   effect?: string;
   setId?: string;                // equipment set bonus
@@ -210,6 +239,25 @@ export interface CraftingRecipe {
   requiredBlacksmith?: boolean;
 }
 
+export type StatusEffectType = 'Buff' | 'Debuff' | 'DamageOverTime' | 'Control' | 'HealOverTime' | 'Utility';
+
+export interface StatusEffect {
+  id: string;
+  name: string;
+  description: string;
+  type: StatusEffectType;
+  duration?: number; // In turns, -1 for permanent until removed
+  magnitude?: number; // e.g., damage per turn for DoT, stat modifier
+  statModifier?: Partial<Stats>;
+  effectIcon?: string;
+}
+
+export interface AppliedStatusEffect extends StatusEffect {
+  remainingDuration: number;
+  sourceId?: string; // e.g., 'poison_enemy_1'
+  casterId?: string; // id of character who applied the effect
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -220,9 +268,12 @@ export interface Character {
   characterClass: Class;
   baseStats: Stats;
   currentStats: Stats;
+  elementalResistance: ElementalResistance;
   hp: { current: number; max: number };
   mp: { current: number; max: number };
-  statusEffects: string[];
+  skillPoints: number;
+  attributePoints: number;
+  statusEffects: AppliedStatusEffect[];
   gold: number;
   aethBalance: number;
   inventory: Item[];

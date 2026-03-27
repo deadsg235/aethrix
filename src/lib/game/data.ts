@@ -1,83 +1,224 @@
 import { Race, SubRace, Class, Stats } from './types';
 
-const defaultStats: Stats = {
+const base: Stats = {
   STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10,
-  LCK: 10, SPD: 10, AET: 10, SPR: 10, PER: 10, RES: 10
+  LCK: 10, SPD: 10, AET: 10, SPR: 10, PER: 10, RES: 10,
 };
 
+// ── RACES ────────────────────────────────────────────────────────────────────
 export const RACES: Race[] = [
-  // User provided
-  { name: 'Beast-race', description: 'Primal warriors with heightened senses.', statModifiers: { STR: 2, DEX: 1, CON: 1, INT: -2 } },
-  { name: 'Terran', description: 'Versatile and resilient survivors.', statModifiers: { CON: 1, CHA: 1, RES: 1, LCK: 1 } },
-  { name: 'Dragon-kin', description: 'Noble descendants of the great drakes.', statModifiers: { STR: 2, INT: 1, RES: 2, AET: 1, DEX: -2 } },
-  { name: 'Obsidian-kin', description: 'Living stone infused with volcanic energy.', statModifiers: { CON: 3, STR: 1, SPD: -2, SPR: 1 } },
-  // Devised
-  { name: 'Aetherials', description: 'Beings of pure energy from the rift.', statModifiers: { AET: 3, INT: 2, STR: -3, CON: -2 } },
-  { name: 'Stone-Kin', description: 'Stoic protectors carved from the earth.', statModifiers: { CON: 2, RES: 2, WIS: 1, SPD: -1 } },
-  { name: 'Shadow-Step', description: 'Nimble scouts from the dark fringes.', statModifiers: { DEX: 3, SPD: 2, PER: 1, STR: -2 } },
-  { name: 'Void-Touched', description: 'Corrupted by the void, powerful but unstable.', statModifiers: { LCK: 3, WIS: 2, CHA: -3, RES: -2 } }
+  {
+    name: 'Beast-race',
+    description: 'Primal warriors with heightened senses and unmatched ferocity.',
+    lore: 'The Beast-race were the first people to resist the Tiena-Nueble. Their homelands were burned in Age 203. They have not forgotten.',
+    statModifiers: { STR: 3, DEX: 2, CON: 2, PER: 2, INT: -2, CHA: -1 },
+    passiveAbility: 'Predator Instinct — +15% damage when below 30% HP',
+  },
+  {
+    name: 'Terran',
+    description: 'Adaptable survivors who thrive in any environment.',
+    lore: 'Terrans built the first roads the empire now marches on. They receive no credit for this.',
+    statModifiers: { CON: 2, CHA: 2, RES: 2, LCK: 2, WIS: 1 },
+    passiveAbility: 'Adaptability — Gain +1 to all stats every 10 levels',
+  },
+  {
+    name: 'Dragon-kin',
+    description: 'Noble descendants of the great drakes, carrying ancient fire in their blood.',
+    lore: 'The last true dragon died in Age 601. The Dragon-kin carry its memory in their bones and its fire in their breath.',
+    statModifiers: { STR: 3, INT: 2, RES: 3, AET: 2, DEX: -2, SPD: -1 },
+    passiveAbility: 'Draconic Scales — 10% physical damage reduction',
+  },
+  {
+    name: 'Obsidian-kin',
+    description: 'Living stone infused with volcanic energy, nearly indestructible.',
+    lore: 'Born from the volcanic eruptions of the Keth mountains. The empire tried to mine them. The empire failed.',
+    statModifiers: { CON: 4, STR: 2, RES: 2, SPR: 2, SPD: -3, DEX: -1 },
+    passiveAbility: 'Stone Skin — Immune to bleed and poison effects',
+  },
+  {
+    name: 'Aetherials',
+    description: 'Beings of pure energy from the rift, barely contained in physical form.',
+    lore: 'Aetherials do not age. They do not sleep. They do not fully understand why other races do either.',
+    statModifiers: { AET: 4, INT: 3, SPR: 3, STR: -4, CON: -3 },
+    passiveAbility: 'Rift Resonance — Spells cost 20% less MP',
+  },
+  {
+    name: 'Stone-Kin',
+    description: 'Stoic protectors carved from the earth itself, ancient beyond reckoning.',
+    lore: 'Stone-Kin were old when the empire was young. They have watched civilizations rise and fall with the patience of mountains.',
+    statModifiers: { CON: 3, RES: 3, WIS: 2, STR: 1, SPD: -2 },
+    passiveAbility: 'Earthbound — +20% HP from all healing sources',
+  },
+  {
+    name: 'Shadow-Step',
+    description: 'Nimble scouts from the dark fringes, masters of misdirection.',
+    lore: 'The Shadow-Step were the empire\'s assassins before they became its enemies. They know every secret passage in every imperial fortress.',
+    statModifiers: { DEX: 4, SPD: 3, PER: 2, LCK: 1, STR: -3 },
+    passiveAbility: 'Phantom Movement — 15% chance to dodge any attack',
+  },
+  {
+    name: 'Void-Touched',
+    description: 'Corrupted by the void, powerful but fundamentally unstable.',
+    lore: 'No one chooses to be Void-Touched. The void chooses them. Most do not survive the choosing.',
+    statModifiers: { LCK: 4, WIS: 3, AET: 2, CHA: -4, RES: -3 },
+    passiveAbility: 'Void Hunger — Critical hits restore 5% HP',
+  },
+  {
+    name: 'Celestial-Born',
+    description: 'Descended from beings that fell from the sky in Age 0. Radiant and terrible.',
+    lore: 'The Celestial-Born claim they remember the sky before the empire built walls tall enough to block it. They are probably right.',
+    statModifiers: { CHA: 4, SPR: 3, WIS: 3, AET: 2, STR: -2, CON: -2 },
+    passiveAbility: 'Divine Aura — Allies gain +5% to all stats when nearby',
+  },
+  {
+    name: 'Iron-Forged',
+    description: 'Part machine, part flesh — the result of ancient pre-empire engineering.',
+    lore: 'The Iron-Forged were created by the Solmaran civilization as soldiers. They outlasted their creators by 800 years.',
+    statModifiers: { STR: 3, CON: 3, RES: 3, INT: 2, SPD: -1, CHA: -2 },
+    passiveAbility: 'Mechanical Frame — Cannot be stunned or paralyzed',
+  },
 ];
 
+// ── SUBRACES ─────────────────────────────────────────────────────────────────
 export const SUBRACES: SubRace[] = [
-  // User provided
-  { name: 'Esper', description: 'Telepathic affinity.', statModifiers: { INT: 2, PER: 1 } },
-  { name: 'Darkblood', description: 'Cursed lineage.', statModifiers: { SPR: -2, STR: 2, LCK: 2 } },
-  { name: 'Angelblood', description: 'Divine resonance.', statModifiers: { CHA: 2, RES: 2 } },
-  { name: 'Hebronic', description: 'Ancient engineering mastery.', statModifiers: { WIS: 2, INT: 1 } },
-  // Devised
-  { name: 'Rift-Walker', description: 'Phase through reality.', statModifiers: { SPD: 2, DEX: 1 } },
-  { name: 'Star-Soul', description: 'Infused with stellar mana.', statModifiers: { AET: 2, SPR: 1 } },
-  { name: 'Primal-Fang', description: 'Instinctual lethality.', statModifiers: { STR: 1, DEX: 1, PER: 1 } },
-  { name: 'Iron-Bound', description: 'Unbreakable resolve.', statModifiers: { CON: 1, RES: 2 } }
+  { name: 'Esper',        description: 'Telepathic affinity.',           statModifiers: { INT: 3, PER: 2 },       passiveAbility: 'Mind Read — See enemy stats before combat' },
+  { name: 'Darkblood',    description: 'Cursed lineage of shadow.',      statModifiers: { SPR: -2, STR: 3, LCK: 3 }, passiveAbility: 'Blood Curse — Deal 10% more damage at night' },
+  { name: 'Angelblood',   description: 'Divine resonance in the veins.', statModifiers: { CHA: 3, RES: 3 },       passiveAbility: 'Holy Aura — Undead take 25% more damage from you' },
+  { name: 'Hebronic',     description: 'Ancient engineering mastery.',   statModifiers: { WIS: 3, INT: 2 },       passiveAbility: 'Schematics — Crafting costs 15% less' },
+  { name: 'Rift-Walker',  description: 'Phase through reality itself.',  statModifiers: { SPD: 3, DEX: 2 },       passiveAbility: 'Phase Step — Teleport short distances in combat' },
+  { name: 'Star-Soul',    description: 'Infused with stellar mana.',     statModifiers: { AET: 3, SPR: 2 },       passiveAbility: 'Stellar Charge — AET regenerates 2 per turn' },
+  { name: 'Primal-Fang',  description: 'Instinctual lethality.',         statModifiers: { STR: 2, DEX: 2, PER: 2 }, passiveAbility: 'Pack Hunter — +20% damage when fighting alongside allies' },
+  { name: 'Iron-Bound',   description: 'Unbreakable resolve.',           statModifiers: { CON: 2, RES: 3 },       passiveAbility: 'Last Stand — Cannot be killed below 1 HP once per battle' },
+  { name: 'Void-Shard',   description: 'A fragment of the void made flesh.', statModifiers: { AET: 4, LCK: 2, CON: -2 }, passiveAbility: 'Void Pulse — Attacks have 10% chance to silence enemies' },
+  { name: 'Ember-Born',   description: 'Fire runs in the blood.',        statModifiers: { STR: 2, AET: 2, SPR: 1 }, passiveAbility: 'Ember Skin — Fire damage heals instead of hurts' },
+  { name: 'Tide-Caller',  description: 'Attuned to the deep currents.',  statModifiers: { WIS: 2, INT: 2, SPR: 2 }, passiveAbility: 'Current Sense — +20% dodge in water areas' },
+  { name: 'Storm-Child',  description: 'Born during a rift storm.',      statModifiers: { SPD: 2, AET: 2, LCK: 2 }, passiveAbility: 'Static Field — Attackers take 5 damage on hit' },
+  { name: 'Deep-Carver',  description: 'Shaped by the pressure of the deep earth.', statModifiers: { CON: 3, STR: 2, SPD: -1 }, passiveAbility: 'Tremorsense — Cannot be ambushed' },
+  { name: 'Silver-Tongue', description: 'Words are weapons.',            statModifiers: { CHA: 4, PER: 2 },       passiveAbility: 'Persuasion — Some enemies can be talked out of fighting' },
+  { name: 'Null-Born',    description: 'Born in a dead zone where the Aethrix does not reach.', statModifiers: { RES: 4, WIS: 2, AET: -2 }, passiveAbility: 'Null Field — Immune to magical debuffs' },
+  { name: 'Ascendant',    description: 'On the edge of something greater.', statModifiers: { AET: 3, INT: 3, SPR: 2 }, passiveAbility: 'Ascension — Gain double EXP from boss kills' },
 ];
 
+// ── CLASSES ──────────────────────────────────────────────────────────────────
 export const CLASSES: Class[] = [
   {
     name: 'Empire Vanguard',
-    description: 'The iron fist of the Tiena-Nueble.',
-    baseStats: { ...defaultStats, STR: 15, CON: 14, RES: 12 },
-    abilities: ['Iron Guard', 'Shield Bash', 'Empire\'s Decree']
+    description: 'The iron fist of the Tiena-Nueble. Unbreakable on the front line.',
+    lore: 'Vanguards are the empire\'s answer to every threat. They are trained to die last.',
+    baseStats: { ...base, STR: 16, CON: 15, RES: 14 },
+    abilityIds: ['iron_guard', 'shield_bash', 'empire_decree'],
+    advancedAbilityIds: ['fortress_stance', 'rallying_cry', 'imperial_charge'],
+    masterAbilityIds: ['unbreakable_wall', 'legions_wrath', 'emperors_judgment'],
+    legendaryAbilityId: 'tiena_nueble_incarnate',
   },
   {
     name: 'Aether Weaver',
-    description: 'Master of the blue flow.',
-    baseStats: { ...defaultStats, INT: 16, AET: 15, SPR: 12 },
-    abilities: ['Aether Pulse', 'Mana Shield', 'Resonance Overload']
+    description: 'Master of the blue flow. Reality bends to their will.',
+    lore: 'Aether Weavers discovered that the Aethrix is not just power — it is language. They learned to speak it.',
+    baseStats: { ...base, INT: 17, AET: 16, SPR: 13 },
+    abilityIds: ['aether_pulse', 'mana_shield', 'resonance_overload'],
+    advancedAbilityIds: ['rift_tear', 'aether_storm', 'reality_stitch'],
+    masterAbilityIds: ['dimensional_collapse', 'aethrix_communion', 'void_weave'],
+    legendaryAbilityId: 'origin_pulse',
   },
   {
     name: 'Soul Reaper',
-    description: 'Extracting life from the void.',
-    baseStats: { ...defaultStats, STR: 14, LCK: 14, SPR: 12 },
-    abilities: ['Life Siphon', 'Ghost Slash', 'Reaper\'s Mark']
+    description: 'Extracting life from the void. Death is a resource.',
+    lore: 'Soul Reapers walk the line between life and death so often they forget which side they started on.',
+    baseStats: { ...base, STR: 14, LCK: 15, SPR: 14 },
+    abilityIds: ['life_siphon', 'ghost_slash', 'reaper_mark'],
+    advancedAbilityIds: ['soul_harvest', 'death_coil', 'spectral_army'],
+    masterAbilityIds: ['soul_rend', 'undying_hunger', 'reapers_domain'],
+    legendaryAbilityId: 'death_incarnate',
   },
   {
     name: 'Void Stalker',
-    description: 'Invisible death.',
-    baseStats: { ...defaultStats, DEX: 16, SPD: 15, PER: 13 },
-    abilities: ['Stealth', 'Critical Strike', 'Shadow Step']
+    description: 'Invisible death. They strike before you know they are there.',
+    lore: 'Void Stalkers do not fight battles. They end them before they begin.',
+    baseStats: { ...base, DEX: 17, SPD: 16, PER: 14 },
+    abilityIds: ['stealth', 'critical_strike', 'shadow_step_ability'],
+    advancedAbilityIds: ['void_cloak', 'assassinate', 'shadow_clone'],
+    masterAbilityIds: ['perfect_invisibility', 'one_thousand_cuts', 'void_execution'],
+    legendaryAbilityId: 'the_last_shadow',
   },
   {
     name: 'Imperial Inquisitor',
-    description: 'Slaying heresy through status.',
-    baseStats: { ...defaultStats, WIS: 15, PER: 14, RES: 13 },
-    abilities: ['Heresy Purge', 'Stun Lock', 'Confession Aura']
+    description: 'Slaying heresy through status and will. The empire\'s judge.',
+    lore: 'Inquisitors are feared more than soldiers. Soldiers kill bodies. Inquisitors kill hope.',
+    baseStats: { ...base, WIS: 16, PER: 15, RES: 14 },
+    abilityIds: ['heresy_purge', 'stun_lock', 'confession_aura'],
+    advancedAbilityIds: ['judgment_brand', 'inquisitors_eye', 'purifying_flame'],
+    masterAbilityIds: ['grand_inquisition', 'soul_verdict', 'imperial_sentence'],
+    legendaryAbilityId: 'final_judgment',
   },
   {
     name: 'Rift Warden',
-    description: 'Dimensional shield.',
-    baseStats: { ...defaultStats, CON: 15, WIS: 14, AET: 13 },
-    abilities: ['Rift Barrier', 'Dimension Swap', 'Warden\'s Aegis']
+    description: 'Dimensional shield. They stand between worlds.',
+    lore: 'Rift Wardens were created to contain the rifts. Some say the rifts created them.',
+    baseStats: { ...base, CON: 16, WIS: 15, AET: 14 },
+    abilityIds: ['rift_barrier', 'dimension_swap', 'wardens_aegis'],
+    advancedAbilityIds: ['dimensional_anchor', 'rift_pulse', 'phase_shield'],
+    masterAbilityIds: ['dimensional_fortress', 'rift_collapse', 'wardens_domain'],
+    legendaryAbilityId: 'dimensional_sovereignty',
   },
   {
     name: 'Storm Caller',
-    description: 'Wrath of the heavens.',
-    baseStats: { ...defaultStats, INT: 15, SPR: 14, LCK: 13 },
-    abilities: ['Chain Lightning', 'Static Field', 'Eye of the Storm']
+    description: 'Wrath of the heavens made manifest.',
+    lore: 'Storm Callers do not summon storms. They are storms that learned to walk.',
+    baseStats: { ...base, INT: 16, SPR: 15, LCK: 14 },
+    abilityIds: ['chain_lightning', 'static_field', 'eye_of_the_storm'],
+    advancedAbilityIds: ['thunder_clap', 'storm_surge', 'lightning_cage'],
+    masterAbilityIds: ['tempest_incarnate', 'sky_shatter', 'storm_eternal'],
+    legendaryAbilityId: 'the_great_storm',
   },
   {
     name: 'Blood Knight',
-    description: 'Power through pain.',
-    baseStats: { ...defaultStats, CON: 16, STR: 15, RES: 12 },
-    abilities: ['Blood Sacrifice', 'Sanguine Blade', 'Vengeful Strike']
-  }
+    description: 'Power through pain. Every wound makes them stronger.',
+    lore: 'Blood Knights discovered that pain is just power waiting to be redirected.',
+    baseStats: { ...base, CON: 17, STR: 16, RES: 13 },
+    abilityIds: ['blood_sacrifice', 'sanguine_blade', 'vengeful_strike'],
+    advancedAbilityIds: ['crimson_tide', 'pain_conversion', 'blood_armor'],
+    masterAbilityIds: ['hemorrhage', 'berserker_ascent', 'crimson_god'],
+    legendaryAbilityId: 'blood_god',
+  },
+  {
+    name: 'Chrono Blade',
+    description: 'Manipulates time itself. Strikes from moments that haven\'t happened yet.',
+    lore: 'Chrono Blades exist slightly out of sync with the present. This is why they always seem to know what you are about to do.',
+    baseStats: { ...base, SPD: 17, DEX: 15, INT: 14 },
+    abilityIds: ['time_slash', 'rewind', 'temporal_strike'],
+    advancedAbilityIds: ['haste_field', 'time_lock', 'echo_strike'],
+    masterAbilityIds: ['temporal_mastery', 'paradox_blade', 'time_stop'],
+    legendaryAbilityId: 'absolute_temporal_control',
+  },
+  {
+    name: 'Void Prophet',
+    description: 'Speaks the language of the void. Madness and power in equal measure.',
+    lore: 'Void Prophets hear the void speaking constantly. Most go mad. The ones who don\'t become terrifying.',
+    baseStats: { ...base, AET: 17, SPR: 16, WIS: 14 },
+    abilityIds: ['void_whisper', 'madness_bolt', 'prophets_vision'],
+    advancedAbilityIds: ['void_sermon', 'sanity_shatter', 'eldritch_surge'],
+    masterAbilityIds: ['void_revelation', 'mass_madness', 'prophets_doom'],
+    legendaryAbilityId: 'the_void_speaks',
+  },
+  {
+    name: 'Aethrix Channeler',
+    description: 'Direct conduit for the Aethrix token\'s power. Rare. Feared.',
+    lore: 'Channelers do not use the Aethrix. They become it, briefly. The experience changes them permanently.',
+    baseStats: { ...base, AET: 18, INT: 16, SPR: 15 },
+    abilityIds: ['token_surge', 'aethrix_bind', 'channel_flow'],
+    advancedAbilityIds: ['token_cascade', 'aethrix_overcharge', 'power_siphon'],
+    masterAbilityIds: ['full_channel', 'aethrix_dominion', 'token_ascension'],
+    legendaryAbilityId: 'aethrix_incarnation',
+  },
+  {
+    name: 'Fringe Walker',
+    description: 'Survivor of the outer dark. Knows every trick the void has.',
+    lore: 'Fringe Walkers grew up where the empire\'s light does not reach. They learned to see in the dark.',
+    baseStats: { ...base, PER: 17, LCK: 15, SPD: 14 },
+    abilityIds: ['dark_sense', 'fringe_tactics', 'survivors_instinct'],
+    advancedAbilityIds: ['void_sight', 'fringe_network', 'adaptive_combat'],
+    masterAbilityIds: ['outer_dark_mastery', 'fringe_legend', 'void_harmony'],
+    legendaryAbilityId: 'one_with_the_fringe',
+  },
 ];

@@ -6,17 +6,20 @@ export function getExpNeeded(level: number): number {
 
 export function levelUp(character: Character): Character {
   const newLevel = character.level + 1;
-  const newCharacter = { ...character, level: newLevel, exp: 0 };
+  const newCharacter = { 
+    ...character, 
+    level: newLevel, 
+    exp: 0,
+    skillPoints: character.skillPoints + 1,
+    attributePoints: character.attributePoints + 5
+  };
   
-  // Stat growth - simple +2 to primary, +1 to others
-  (Object.keys(newCharacter.currentStats) as Stat[]).forEach(stat => {
-    newCharacter.currentStats[stat] += 1;
-    newCharacter.baseStats[stat] += 1;
-  });
+  // No automatic stat growth anymore
 
-  // Recalculate Max HP/MP
-  newCharacter.hp.max = newCharacter.currentStats.CON * 10 + newCharacter.currentStats.STR * 2;
-  newCharacter.mp.max = newCharacter.currentStats.INT * 10 + newCharacter.currentStats.AET * 5;
+  // Recalculate Max HP/MP (including a small natural growth per level)
+  const levelBonus = newLevel * 5;
+  newCharacter.hp.max = newCharacter.currentStats.CON * 10 + newCharacter.currentStats.STR * 2 + levelBonus;
+  newCharacter.mp.max = newCharacter.currentStats.INT * 10 + newCharacter.currentStats.AET * 5 + levelBonus;
   
   // Fully heal on level up
   newCharacter.hp.current = newCharacter.hp.max;
