@@ -106,7 +106,6 @@ function makeInitialState(): GameState {
 
     // core
     act: 1,
-
     party: [],
     quests: [],
 
@@ -114,14 +113,16 @@ function makeInitialState(): GameState {
     activeAreaId: null,
     activeContinentId: null,
     unlockedAreas: [],
+    unlockedContinents: [],
 
-    // dungeon system (NEW)
+    // dungeon
     activeDungeonId: null,
     activeDungeonFloor: 0,
 
     // story
     storyNodeId: 'intro',
     storyFlags: [],
+    discoveredLore: [],
 
     // combat
     enemies: [],
@@ -134,6 +135,11 @@ function makeInitialState(): GameState {
     walletPublicKey: null,
     walletAethBalance: null,
     walletAethSpent: 0,
+
+    // meta progression / session
+    sessionStartTime: Date.now(),
+    totalPlaytimeMinutes: 0,
+    newGamePlusCount: 0,
 
     // misc
     log: [],
